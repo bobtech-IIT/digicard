@@ -11,7 +11,7 @@ import CardPreview from "@/components/CardPreview";
 import AISettings from "@/components/AISettings";
 import BrandAssets from "@/components/BrandAssets";
 import { useLocation } from "wouter";
-import { Sparkles, Settings, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, Check, ClipboardCheck, Loader2, Key, Eye } from "lucide-react";
+import { Sparkles, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, ClipboardCheck, Loader2, Key, Eye, PenLine, Wand2, Type, Bold, Italic, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import * as XLSX from "xlsx";
@@ -19,6 +19,18 @@ import JSZip from "jszip";
 import { jsPDF } from "jspdf";
 import { resizeImageBase64 } from "@/lib/image-utils";
 import { convertSvgToPngDataUrl } from "@/lib/export-utils";
+
+/** TextBox element for freeform card text overlays */
+interface TextBox {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  bold: boolean;
+  italic: boolean;
+}
 
 interface CardData {
   headshot: string | null;
@@ -29,6 +41,7 @@ interface CardData {
   address: string;
   officeName: string;
   officeDetails: string;
+  bio: string;
   social: {
     linkedin: string;
     twitter: string;
@@ -73,9 +86,21 @@ export default function CardBuilder() {
   const [bioSuggestions, setBioSuggestions] = useState<string[]>([]);
   const [taglineSuggestions, setTaglineSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isWritingBio, setIsWritingBio] = useState(false);
+  const [bioPreview, setBioPreview] = useState<string | null>(null);
+
+  // Excel AI cleaner states
+  const [isCleaningExcel, setIsCleaningExcel] = useState(false);
+  const [excelDiff, setExcelDiff] = useState<{original: any[], cleaned: any[]} | null>(null);
+  const [showExcelDiff, setShowExcelDiff] = useState(false);
+
+  // Text box tool states
+  const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
+  const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
+  const [showTextBoxPanel, setShowTextBoxPanel] = useState(false);
   
   // Custom offsets from the drag editor
-  const [offsets, setOffsets] = useState<Record<string, { x: number; y: number; scale?: number; fontSize?: number }>>({});
+  const [offsets, setOffsets] = useState<Record<string, { x: number; y: number; scale?: number; fontSize?: number }>>({})
   
   // State for the public share modal
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -147,6 +172,7 @@ export default function CardBuilder() {
     address: "",
     officeName: "",
     officeDetails: "",
+    bio: "",
     social: {
       linkedin: "",
       twitter: "",
@@ -259,26 +285,118 @@ Return JSON like: {"name":"...","designation":"...","phone":"...","email":"...",
     if (!cardData.name || !cardData.designation) { toast.error("Please enter name and designation first"); return; }
     if (!openRouterKey) { toast.error("Enter your OpenRouter API key at the top to enable AI features."); return; }
     try {
-      const bioPrompt = `Generate 3 short professional bio taglines for a business card. Person: ${cardData.name}, Role: ${cardData.designation}, Company: ${cardData.officeName}. Return ONLY a JSON array of 3 strings, e.g. ["tagline1","tagline2","tagline3"]`;
       const taglinePrompt = `Generate 3 creative company taglines for a visiting card for role: ${cardData.designation} at ${cardData.officeName || "a company"}. Return ONLY a JSON array of 3 strings.`;
-      const [biosRaw, taglinesRaw] = await Promise.all([
-        callOpenRouterDirect(bioPrompt),
-        callOpenRouterDirect(taglinePrompt)
-      ]);
+      const taglinesRaw = await callOpenRouterDirect(taglinePrompt);
       const parseSuggestions = (raw: string): string[] => {
         try {
           const match = raw.match(/\[[\s\S]*?\]/);
           return match ? JSON.parse(match[0]) : [];
         } catch { return []; }
       };
-      setBioSuggestions(parseSuggestions(biosRaw));
       setTaglineSuggestions(parseSuggestions(taglinesRaw));
       setShowSuggestions(true);
       toast.success("AI suggestions generated!");
     } catch (error: any) {
       console.error("AI Ideas error:", error);
-      toast.error(`AI Ideas failed: ${error?.message?.slice(0, 80) || "Unknown error"}`);
+      toast.error(`AI Suggestions failed: ${error?.message?.slice(0, 80) || "Unknown error"}`);
     }
+  };
+
+  // ── AI Bio Writer: generates a punchy 30-word professional bio ──────────────
+  const handleWriteBio = async () => {
+    if (!cardData.name) { toast.error("Enter your name first"); return; }
+    if (!openRouterKey) { toast.error("Enter your OpenRouter API key to use AI Bio Writer"); return; }
+    setIsWritingBio(true);
+    setBioPreview(null);
+    try {
+      const prompt = `Write a punchy, confident 30-word first-person professional bio for a visiting card.
+Person: ${cardData.name}, Role: ${cardData.designation || "Professional"}, Company: ${cardData.officeName || "their company"}.
+Requirements: exactly 25-30 words, no hashtags, no emojis, no quotes. Output ONLY the bio text.`;
+      const raw = await callOpenRouterDirect(prompt);
+      const bio = raw.trim().replace(/^"|"$/g, "").replace(/^'|'$/g, "");
+      setBioPreview(bio);
+    } catch (err: any) {
+      toast.error(`Bio writer failed: ${err?.message?.slice(0, 80) || "Unknown error"}`);
+    } finally {
+      setIsWritingBio(false);
+    }
+  };
+
+  const handleUseBio = () => {
+    if (bioPreview) {
+      setCardData(prev => ({ ...prev, bio: bioPreview }));
+      setBioPreview(null);
+      toast.success("Bio applied to card!");
+    }
+  };
+
+  // ── Excel AI Data Cleaner: batch-fixes all loaded rows in one shot ──────────
+  const handleCleanExcelData = async () => {
+    if (dashboardRows.length === 0) { toast.error("Upload a spreadsheet first"); return; }
+    if (!openRouterKey) { toast.error("Enter your OpenRouter API key to use AI cleaner"); return; }
+    setIsCleaningExcel(true);
+    try {
+      const sample = dashboardRows.slice(0, 10);
+      const prompt = `You are a data cleaning expert. Fix these contact records:
+- Name: Title Case (e.g. "john doe" → "John Doe")
+- Phone: normalize to digits only with country code if present (e.g. "9876543210" stays, "091234 56789" → "9123456789")
+- Email: lowercase always
+- Company/Office: Title Case
+- Designation: Title Case
+- Do NOT change addresses or social URLs
+
+Input JSON array:
+${JSON.stringify(sample, null, 2)}
+
+Return ONLY a valid JSON array with the same keys, cleaned values. No explanation.`;
+      const raw = await callOpenRouterDirect(prompt);
+      const match = raw.match(/\[[\s\S]*\]/);
+      if (!match) throw new Error("AI returned no valid JSON array");
+      const cleaned = JSON.parse(match[0]);
+      setExcelDiff({ original: sample, cleaned });
+      setShowExcelDiff(true);
+      toast.success("AI cleaned data ready — review the diff below!");
+    } catch (err: any) {
+      toast.error(`AI Excel cleaner failed: ${err?.message?.slice(0, 100) || "Unknown error"}`);
+    } finally {
+      setIsCleaningExcel(false);
+    }
+  };
+
+  const handleApplyCleanedData = () => {
+    if (!excelDiff) return;
+    const remaining = dashboardRows.slice(excelDiff.cleaned.length);
+    setDashboardRows([...excelDiff.cleaned, ...remaining]);
+    setExcelDiff(null);
+    setShowExcelDiff(false);
+    toast.success(`Applied AI-cleaned data to ${excelDiff.cleaned.length} records!`);
+  };
+
+  // ── Text Box tool helpers ───────────────────────────────────────────────────
+  const handleAddTextBox = () => {
+    const id = `tb-${Date.now()}`;
+    const newBox: TextBox = {
+      id,
+      text: "Add your text here",
+      x: 50, y: 50,
+      fontSize: 14,
+      color: cardData.brandColors?.primary || "#047857",
+      bold: false,
+      italic: false,
+    };
+    setTextBoxes(prev => [...prev, newBox]);
+    setSelectedTextBoxId(id);
+    setShowTextBoxPanel(true);
+    toast.success("Text box added — drag it on the card preview");
+  };
+
+  const handleUpdateTextBox = (id: string, updates: Partial<TextBox>) => {
+    setTextBoxes(prev => prev.map(tb => tb.id === id ? { ...tb, ...updates } : tb));
+  };
+
+  const handleDeleteTextBox = (id: string) => {
+    setTextBoxes(prev => prev.filter(tb => tb.id !== id));
+    if (selectedTextBoxId === id) setSelectedTextBoxId(null);
   };
 
   // Map a row to the card inputs
@@ -604,14 +722,14 @@ Return JSON like: {"name":"...","designation":"...","phone":"...","email":"...",
     }
     setIsSaving(true);
     try {
-      const compressedHeadshot = cardData.headshot ? await resizeImageBase64(cardData.headshot, 200, 200) : "";
-      const compressedLogo = cardData.brandLogo ? await resizeImageBase64(cardData.brandLogo, 150, 75) : "";
-
+      // ── CRITICAL FIX: Never send base64 images to tRPC (Vercel 4.5MB limit) ──
+      // Images stay in localStorage only. Server receives only text metadata.
       const socialLinksData = JSON.stringify({
         social: cardData.social,
         brandColors: cardData.brandColors,
-        brandLogo: compressedLogo,
-        offsets: offsets
+        offsets,
+        bio: cardData.bio,
+        // NOTE: No images here — stored in localStorage below
       });
 
       const result = await saveMutation.mutateAsync({
@@ -622,12 +740,22 @@ Return JSON like: {"name":"...","designation":"...","phone":"...","email":"...",
         address: cardData.address,
         officeName: cardData.officeName,
         officeDetails: cardData.officeDetails,
-        headshotUrl: compressedHeadshot,
         socialLinks: socialLinksData,
         aspectRatio: layoutType.startsWith("vertical") ? "3:4" : "16:9"
       });
 
       if (result.success && result.id) {
+        // Store images in localStorage keyed by card ID
+        try {
+          if (cardData.headshot) {
+            localStorage.setItem(`glasscard_headshot_${result.id}`, cardData.headshot);
+          }
+          if (cardData.brandLogo) {
+            localStorage.setItem(`glasscard_logo_${result.id}`, cardData.brandLogo);
+          }
+        } catch {
+          // localStorage may be full — images won't persist but card saves fine
+        }
         setSavedCardId(result.id);
         setShareModalOpen(true);
         toast.success("Card saved successfully!");
@@ -636,7 +764,7 @@ Return JSON like: {"name":"...","designation":"...","phone":"...","email":"...",
       }
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save card metadata");
+      toast.error("Failed to save card — check your internet connection");
     } finally {
       setIsSaving(false);
     }
@@ -707,6 +835,18 @@ Return JSON like: {"name":"...","designation":"...","phone":"...","email":"...",
                 className="hidden"
               />
             </label>
+            {dashboardRows.length > 0 && (
+              <Button
+                onClick={handleCleanExcelData}
+                disabled={isCleaningExcel}
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold gap-1.5 h-9 px-3"
+                title="AI fixes name casing, phone format, email and capitalization across all rows"
+              >
+                {isCleaningExcel ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                {isCleaningExcel ? "AI Cleaning…" : "🧹 AI Clean All Records"}
+              </Button>
+            )}
           </div>
         </Card>
 
@@ -843,25 +983,132 @@ Return JSON like: {"name":"...","designation":"...","phone":"...","email":"...",
                   </div>
 
 
+                  {/* Bio field */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-700">Short Professional Bio</label>
+                    <Textarea
+                      placeholder="A 30-word professional intro shown below your designation…"
+                      value={cardData.bio}
+                      onFocus={() => setLastFocusedField("bio")}
+                      onChange={(e) => handleInputChange("bio", e.target.value)}
+                      className="border-gray-200 resize-none h-14 text-sm py-1.5"
+                    />
+                    <Button
+                      onClick={handleWriteBio}
+                      disabled={isWritingBio}
+                      size="sm"
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-1.5 h-8 text-xs font-semibold"
+                    >
+                      {isWritingBio ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
+                      {isWritingBio ? "AI writing bio…" : "✍️ AI Write 30-Word Bio"}
+                    </Button>
+                    {bioPreview && (
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 space-y-2">
+                        <p className="text-xs text-gray-700 italic leading-relaxed">{bioPreview}</p>
+                        <div className="flex gap-1.5">
+                          <Button onClick={handleUseBio} size="sm" className="flex-1 bg-purple-600 text-white h-7 text-[10px] font-bold">Use This</Button>
+                          <Button onClick={handleWriteBio} variant="outline" size="sm" className="flex-1 h-7 text-[10px] gap-1"><RefreshCw size={9} />Regenerate</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* AI clean / Suggestions actions */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-1">
                     <Button
                       onClick={handleAICleanData}
                       disabled={isCleaning}
                       className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5 h-9 text-xs font-semibold"
+                      title="AI fixes name casing, phone format, email and capitalization"
                     >
-                      {isCleaning ? <Loader2 size={12} className="animate-spin" /> : <Sparkle size={12} />}
-                      AI Format
+                      {isCleaning ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                      ✨ Fix & Format
                     </Button>
                     <Button
                       onClick={handleGenerateSuggestions}
-                      disabled={bioMutation.isPending || taglineMutation.isPending}
                       className="flex-1 bg-teal-600 hover:bg-teal-700 text-white gap-1.5 h-9 text-xs font-semibold"
+                      title="Get 3 AI-generated company tagline alternatives"
                     >
                       <Sparkles size={12} />
-                      AI Ideas
+                      💡 AI Suggestions
                     </Button>
                   </div>
+
+                  {/* Text Box tool */}
+                  <div className="pt-1">
+                    <Button
+                      onClick={handleAddTextBox}
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-8 text-xs gap-1.5 border-dashed border-gray-300 text-gray-600 hover:bg-gray-50"
+                    >
+                      <Type size={11} /> + Add Custom Text Box
+                    </Button>
+                  </div>
+
+                  {/* Text Box control panel */}
+                  {showTextBoxPanel && textBoxes.length > 0 && (() => {
+                    const sel = textBoxes.find(tb => tb.id === selectedTextBoxId) || textBoxes[textBoxes.length - 1];
+                    return (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wide">Text Box Controls</span>
+                          <button onClick={() => setShowTextBoxPanel(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+                        </div>
+                        <Input
+                          value={sel.text}
+                          onChange={e => handleUpdateTextBox(sel.id, { text: e.target.value })}
+                          className="h-7 text-xs border-gray-200"
+                          placeholder="Text content…"
+                        />
+                        <div className="flex gap-2 items-center">
+                          <label className="text-[10px] text-gray-500 shrink-0">Size</label>
+                          <input
+                            type="range" min={8} max={32} value={sel.fontSize}
+                            onChange={e => handleUpdateTextBox(sel.id, { fontSize: Number(e.target.value) })}
+                            className="flex-1 h-1 accent-teal-600"
+                          />
+                          <span className="text-[10px] font-mono text-gray-600 w-6">{sel.fontSize}</span>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <label className="text-[10px] text-gray-500 shrink-0">Color</label>
+                          <div className="flex gap-1 flex-wrap">
+                            {[cardData.brandColors?.primary || "#047857", cardData.brandColors?.secondary || "#0d9488", "#000000", "#ffffff", "#6b7280"].map(c => (
+                              <button key={c} onClick={() => handleUpdateTextBox(sel.id, { color: c })}
+                                style={{ background: c, border: sel.color === c ? "2px solid #000" : "1px solid #e5e7eb" }}
+                                className="w-5 h-5 rounded-full shrink-0" />
+                            ))}
+                            <input type="color" value={sel.color}
+                              onChange={e => handleUpdateTextBox(sel.id, { color: e.target.value })}
+                              className="w-5 h-5 rounded-full cursor-pointer border-0 p-0" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleUpdateTextBox(sel.id, { bold: !sel.bold })}
+                            className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded border font-bold ${sel.bold ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 border-gray-200"}`}
+                          ><Bold size={9} /> Bold</button>
+                          <button
+                            onClick={() => handleUpdateTextBox(sel.id, { italic: !sel.italic })}
+                            className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded border italic ${sel.italic ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 border-gray-200"}`}
+                          ><Italic size={9} /> Italic</button>
+                          <button
+                            onClick={() => handleDeleteTextBox(sel.id)}
+                            className="ml-auto text-[10px] text-red-500 hover:text-red-700 px-2 py-1 rounded border border-red-200 bg-white"
+                          >Delete</button>
+                        </div>
+                        {textBoxes.length > 1 && (
+                          <div className="flex gap-1 flex-wrap pt-1">
+                            {textBoxes.map((tb, i) => (
+                              <button key={tb.id} onClick={() => setSelectedTextBoxId(tb.id)}
+                                className={`text-[9px] px-1.5 py-0.5 rounded border ${selectedTextBoxId === tb.id ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-600 border-gray-200"}`}
+                              >Box {i + 1}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </TabsContent>
 
                 {/* Social links tab */}
@@ -963,6 +1210,51 @@ Return JSON like: {"name":"...","designation":"...","phone":"...","email":"...",
             />
           </div>
         </div>
+
+        {/* Excel AI cleaner diff preview */}
+        {showExcelDiff && excelDiff && (
+          <Card className="p-5 bg-amber-50 border border-amber-300 rounded-2xl space-y-4 shadow-md">
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-bold text-amber-900 flex items-center gap-1.5"><Wand2 size={16} /> AI Cleaned Data Preview</h3>
+              <button onClick={() => setShowExcelDiff(false)} className="text-amber-700 text-xs hover:underline">Dismiss</button>
+            </div>
+            <p className="text-xs text-amber-700">Review what AI changed. Click <strong>Apply</strong> to replace your records, or dismiss to keep originals.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] border-collapse">
+                <thead>
+                  <tr className="bg-amber-100">
+                    <th className="text-left p-1 border border-amber-200 font-bold text-amber-900">#</th>
+                    {Object.keys(excelDiff.original[0] || {}).slice(0, 6).map(k => (
+                      <th key={k} className="text-left p-1 border border-amber-200 font-bold text-amber-900">{k}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {excelDiff.cleaned.map((row, i) => (
+                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-amber-50/40"}>
+                      <td className="p-1 border border-amber-100 text-gray-500 font-mono">{i + 1}</td>
+                      {Object.keys(excelDiff.original[0] || {}).slice(0, 6).map(k => {
+                        const orig = String(excelDiff.original[i]?.[k] || "");
+                        const clean = String(row[k] || "");
+                        const changed = orig !== clean;
+                        return (
+                          <td key={k} className={`p-1 border border-amber-100 ${changed ? "bg-green-50" : ""}`}>
+                            {changed && <span className="line-through text-red-400 mr-1">{orig}</span>}
+                            <span className={changed ? "text-green-700 font-semibold" : "text-gray-700"}>{clean}</span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleApplyCleanedData} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold h-9 px-5">✅ Apply Cleaned Data</Button>
+              <Button variant="outline" onClick={() => setShowExcelDiff(false)} className="text-xs h-9">Keep Originals</Button>
+            </div>
+          </Card>
+        )}
 
         {/* Dashboard table display of uploaded rows */}
         {dashboardRows.length > 0 && (
