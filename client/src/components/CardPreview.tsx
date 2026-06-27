@@ -442,13 +442,12 @@ export default function CardPreview({
       {/* ── Brand accent strip (top) ── */}
       <rect x="0" y="0" width="800" height="5" fill={brandColors.primary} rx="2" />
 
-      {/* ── Logo (top-right) — premium pill shape ── */}
+      {/* ── Logo (top-right) — no border, transparent PNG renders directly ── */}
       <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
-        <rect x="640" y="18" width="120" height="38" rx="19" stroke={brandColors.primary} strokeWidth="1.5" fill="#f0fdf4" />
         {cardData.brandLogo
-          ? <image href={cardData.brandLogo} x="646" y="22" width="108" height="30" preserveAspectRatio="xMidYMid meet" />
-          : <text x="700" y="41" textAnchor="middle" fontSize="12" fontWeight="700" fill={brandColors.primary} className="fc-body" letterSpacing="0.5">LOGO</text>}
-        {editorMode && <><rect x="636" y="13" width="128" height="48" rx="6" className="drag-outline" />{resizeHandle("logo", 764, 61)}</>}
+          ? <image href={cardData.brandLogo} x="630" y="12" width="140" height="50" preserveAspectRatio="xMidYMid meet" />
+          : <text x="700" y="43" textAnchor="middle" fontSize="11" fontWeight="600" fill={brandColors.primary} className="fc-body" letterSpacing="0.5" opacity="0.5">YOUR LOGO</text>}
+        {editorMode && <><rect x="626" y="8" width="148" height="58" rx="6" className="drag-outline" />{resizeHandle("logo", 774, 66)}</>}
       </g>
 
       {/* ── Name (top-left, two-tone) — auto wraps if total name > 16 chars ── */}
@@ -587,13 +586,12 @@ export default function CardPreview({
         {editorMode && <><circle cx="155" cy="185" r="136" className="drag-outline" />{resizeHandle("photo", 280, 310)}</>}
       </g>
 
-      {/* ── Logo (top-right) ── */}
+      {/* ── Logo (top-right) — no border, transparent PNG renders directly ── */}
       <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
-        <rect x="640" y="18" width="120" height="38" rx="19" stroke={brandColors.primary} strokeWidth="1.5" fill="#f0fdf4" />
         {cardData.brandLogo
-          ? <image href={cardData.brandLogo} x="646" y="22" width="108" height="30" preserveAspectRatio="xMidYMid meet" />
-          : <text x="700" y="41" textAnchor="middle" fontSize="12" fontWeight="700" fill={brandColors.primary} className="fc-body" letterSpacing="0.5">LOGO</text>}
-        {editorMode && <><rect x="636" y="13" width="128" height="48" rx="6" className="drag-outline" />{resizeHandle("logo", 764, 61)}</>}
+          ? <image href={cardData.brandLogo} x="630" y="12" width="140" height="50" preserveAspectRatio="xMidYMid meet" />
+          : <text x="700" y="43" textAnchor="middle" fontSize="11" fontWeight="600" fill={brandColors.primary} className="fc-body" letterSpacing="0.5" opacity="0.5">YOUR LOGO</text>}
+        {editorMode && <><rect x="626" y="8" width="148" height="58" rx="6" className="drag-outline" />{resizeHandle("logo", 774, 66)}</>}
       </g>
 
       {/* ── Name ── */}
@@ -701,13 +699,12 @@ export default function CardPreview({
         {/* ── Brand accent strip (top) ── */}
         <rect x="0" y="0" width="514" height="5" fill={brandColors.primary} rx="2" />
 
-        {/* ── Logo — premium pill, anchored within card boundary at top-right ── */}
+        {/* ── Logo — no border, transparent PNG renders directly ── */}
         <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
-          <rect x="354" y="10" width="122" height="36" rx="18" stroke={brandColors.primary} strokeWidth="1.5" fill="#f0fdf4" />
           {cardData.brandLogo
-            ? <image href={cardData.brandLogo} x="360" y="14" width="110" height="28" preserveAspectRatio="xMidYMid meet" />
-            : <text x="415" y="33" textAnchor="middle" fontSize="12" fontWeight="700" fill={brandColors.primary} className="fc-body" letterSpacing="0.5">LOGO</text>}
-          {editorMode && <><rect x="350" y="6" width="130" height="44" rx="6" className="drag-outline" />{resizeHandle("logo", 480, 50)}</>}
+            ? <image href={cardData.brandLogo} x="340" y="8" width="150" height="50" preserveAspectRatio="xMidYMid meet" />
+            : <text x="415" y="38" textAnchor="middle" fontSize="11" fontWeight="600" fill={brandColors.primary} className="fc-body" letterSpacing="0.5" opacity="0.5">YOUR LOGO</text>}
+          {editorMode && <><rect x="336" y="4" width="158" height="58" rx="6" className="drag-outline" />{resizeHandle("logo", 494, 62)}</>}
         </g>
 
         {/* ── Profile Photo (right column, if enabled) ── */}

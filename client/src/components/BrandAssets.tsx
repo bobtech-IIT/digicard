@@ -87,6 +87,87 @@ function extractDominantColor(base64: string): Promise<{ primary: string; second
   });
 }
 
+/**
+ * Canvas-based background remover.
+ * Samples background color from the 4 corners of the image, then
+ * flood-fills from every edge pixel, setting near-background pixels
+ * to fully transparent. Works best for logos on white/solid backgrounds.
+ */
+function removeBackground(base64: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(base64); return; }
+
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      const w = canvas.width;
+      const h = canvas.height;
+      const TOLERANCE = 40;
+
+      // Sample background color from 4 corners (average)
+      const sampleCorners = (x: number, y: number) => {
+        const idx = (y * w + x) * 4;
+        return { r: data[idx], g: data[idx + 1], b: data[idx + 2], a: data[idx + 3] };
+      };
+      const corners = [
+        sampleCorners(0, 0), sampleCorners(w - 1, 0),
+        sampleCorners(0, h - 1), sampleCorners(w - 1, h - 1),
+      ];
+      const bgR = Math.round(corners.reduce((s, c) => s + c.r, 0) / 4);
+      const bgG = Math.round(corners.reduce((s, c) => s + c.g, 0) / 4);
+      const bgB = Math.round(corners.reduce((s, c) => s + c.b, 0) / 4);
+
+      const isBackground = (idx: number) => {
+        const dr = data[idx] - bgR;
+        const dg = data[idx + 1] - bgG;
+        const db = data[idx + 2] - bgB;
+        return Math.sqrt(dr * dr + dg * dg + db * db) <= TOLERANCE;
+      };
+
+      // BFS flood-fill from all edge pixels
+      const visited = new Uint8Array(w * h);
+      const queue: number[] = [];
+
+      const enqueue = (x: number, y: number) => {
+        if (x < 0 || x >= w || y < 0 || y >= h) return;
+        const pos = y * w + x;
+        if (visited[pos]) return;
+        const idx = pos * 4;
+        if (data[idx + 3] === 0) { visited[pos] = 1; return; } // already transparent
+        if (isBackground(idx)) {
+          visited[pos] = 1;
+          queue.push(x, y);
+        }
+      };
+
+      // Seed from all 4 edges
+      for (let x = 0; x < w; x++) { enqueue(x, 0); enqueue(x, h - 1); }
+      for (let y = 0; y < h; y++) { enqueue(0, y); enqueue(w - 1, y); }
+
+      while (queue.length > 0) {
+        const y = queue.pop()!;
+        const x = queue.pop()!;
+        const idx = (y * w + x) * 4;
+        data[idx + 3] = 0; // make transparent
+        enqueue(x + 1, y); enqueue(x - 1, y);
+        enqueue(x, y + 1); enqueue(x, y - 1);
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => resolve(base64);
+    img.src = base64;
+  });
+}
+
 export default function BrandAssets({
   onBrandUpdate,
   currentBrandLogo,
@@ -104,11 +185,21 @@ export default function BrandAssets({
     if (!file.type.startsWith("image/")) { toast.error("Please upload an image file"); return; }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setLogoPreview(result);
-      onBrandUpdate({ logo: result, colors: { primary: primaryColor, secondary: secondaryColor } });
-      toast.success("Logo uploaded! Click 'Extract Brand Colors' to auto-detect colors.");
+    reader.onload = async (event) => {
+      const raw = event.target?.result as string;
+      toast.loading("Removing background…", { id: "logo-bg" });
+      try {
+        // Always run background removal — works on white, light grey, any solid bg
+        const result = await removeBackground(raw);
+        setLogoPreview(result);
+        onBrandUpdate({ logo: result, colors: { primary: primaryColor, secondary: secondaryColor } });
+        toast.success("Logo uploaded with background removed!", { id: "logo-bg" });
+      } catch {
+        // Fallback: use original
+        setLogoPreview(raw);
+        onBrandUpdate({ logo: raw, colors: { primary: primaryColor, secondary: secondaryColor } });
+        toast.success("Logo uploaded!", { id: "logo-bg" });
+      }
     };
     reader.readAsDataURL(file);
   };
