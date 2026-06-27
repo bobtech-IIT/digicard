@@ -1,11 +1,10 @@
 import { useRef, useState, useEffect } from "react";
-import { QRCodeSVG as QRCode } from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
+
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { Download, Share2, MessageCircle, Move, Settings } from "lucide-react";
+import { Download, MessageCircle, Move, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
-import { convertSvgToPngDataUrl } from "@/lib/export-utils";
 
 interface CardData {
   headshot: string | null;
@@ -43,20 +42,70 @@ interface CardPreviewProps {
   cardId?: number;
 }
 
-const RAW_ICONS = {
-  phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z",
+// ── SVG path data for icons (all 24×24 viewBox) ──────────────────────────────
+const ICONS = {
+  phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.13 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.04 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z",
   whatsapp: "M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.705 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z",
   email: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z",
-  emailLine: "M22 6l-10 7L2 6",
-  mapPin: "M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z",
-  mapPinCircle: "M12 10 A 3 3 0 1 1 12 9.99 Z",
-  globe: "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 20c-4 0-7-4.5-7-10S8 2 12 2s7 4.5 7 10-3 10-7 10z M2 12h20",
-  linkedin: "M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z M2 9h4v12H2zm2-5a2 2 0 1 1-2 2 2 2 0 0 1 2-2z",
-  instagram: "M17 2H7a5 5 0 0 0-5 5v10a5 5 0 0 0 5 5h10a5 5 0 0 0 5-5V7a5 5 0 0 0-5-5zm-5 14a4 4 0 1 1 4-4 4 4 0 0 1-4 4zm5.25-8.25a1.25 1.25 0 1 1 1.25-1.25 1.25 1.25 0 0 1-1.25 1.25z",
-  youtube: "M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.41 19c1.71.46 8.59.46 8.59.46s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z M9.75 15.02V8.48L15.5 11.75z",
+  emailChevron: "M22 6l-10 7L2 6",
+  globe: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18c-3.35 0-6.28-1.77-7.96-4.43C5.9 14.47 8.76 14 12 14s6.1.47 7.96 1.57C18.28 18.23 15.35 20 12 20zm0-8c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm7.5 4.2c-1.71-1.33-4.44-2.2-7.5-2.2s-5.79.87-7.5 2.2C4.35 15.55 4 14.31 4 13c0-4.42 3.58-8 8-8s8 3.58 8 8c0 1.31-.35 2.55-.5 3.2z",
+  mapPin: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+  linkedin: "M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z M4 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+  instagram: "M17 2H7a5 5 0 0 0-5 5v10a5 5 0 0 0 5 5h10a5 5 0 0 0 5-5V7a5 5 0 0 0-5-5zm-5 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm5.25-9.75a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z",
+  youtube: "M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.41 19c1.71.46 8.59.46 8.59.46s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33zM9.75 15.02l6-3.27-6-3.27v6.54z",
   twitter: "M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z",
   facebook: "M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"
 };
+
+// Helper: truncate text to fit within maxLen characters
+const truncate = (text: string, maxLen: number) => {
+  if (!text) return "";
+  return text.length > maxLen ? text.slice(0, maxLen - 1) + "…" : text;
+};
+
+// Helper: render contact icon circle + label + value in pure SVG
+function ContactRow({
+  cx, cy, iconPath, iconPath2, label, value, href, fillColor, isWhatsapp = false, scale = 0.55
+}: {
+  cx: number; cy: number; iconPath: string; iconPath2?: string;
+  label: string; value: string; href: string;
+  fillColor: string; isWhatsapp?: boolean; scale?: number;
+}) {
+  const r = 14;
+  const isMissing = !value || value === "Data Missing";
+  const display = isMissing ? "Data Missing" : truncate(value, 30);
+  const textColor = isMissing ? "#ef4444" : "#1f2937";
+  const offset = -(24 * scale) / 2;
+  return (
+    <a href={isMissing ? undefined : href} target="_blank" rel="noopener noreferrer">
+      <circle cx={cx} cy={cy} r={r} fill={fillColor} />
+      <path d={iconPath} fill={isWhatsapp ? fillColor : "#ffffff"}
+        transform={`translate(${cx + offset}, ${cy + offset}) scale(${scale})`}
+        stroke={isWhatsapp ? undefined : "none"}
+      />
+      {iconPath2 && (
+        <path d={iconPath2} stroke="#ffffff" strokeWidth="2" fill="none"
+          transform={`translate(${cx + offset}, ${cy + offset}) scale(${scale})`} />
+      )}
+      <text x={cx + r + 6} y={cy - 5} fontSize="8" fontWeight="700" fill="#374151" fontFamily="'Plus Jakarta Sans', sans-serif">{label}</text>
+      <text x={cx + r + 6} y={cy + 9} fontSize="11" fontWeight="600" fill={textColor} fontFamily="'Plus Jakarta Sans', sans-serif">{display}</text>
+    </a>
+  );
+}
+
+// Helper: social icon circle with label
+function SocialIcon({ cx, cy, iconPath, bgColor, href, label }: {
+  cx: number; cy: number; iconPath: string; bgColor: string; href: string; label: string;
+}) {
+  const hasHref = href && href !== "Data Missing" && href !== "#";
+  return (
+    <a href={hasHref ? href : undefined} target="_blank" rel="noopener noreferrer">
+      <circle cx={cx} cy={cy} r={11} fill={bgColor} />
+      <path d={iconPath} fill="#ffffff" transform={`translate(${cx - 5.5}, ${cy - 5.5}) scale(0.458)`} />
+      <text x={cx} y={cy + 22} textAnchor="middle" fontSize="7" fontWeight="600" fill="#6b7280" fontFamily="'Plus Jakarta Sans', sans-serif">{label}</text>
+    </a>
+  );
+}
 
 export default function CardPreview({
   cardData,
@@ -67,917 +116,755 @@ export default function CardPreview({
   cardId
 }: CardPreviewProps) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  
+
   const [isExporting, setIsExporting] = useState(false);
   const [editorMode, setEditorMode] = useState(false);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [resizingItem, setResizingItem] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState({ clientX: 0, scale: 1.0 });
 
-  // Initialize coordinates and scales/sizes
-  const [offsets, setOffsets] = useState<Record<string, { x: number; y: number; scale?: number; fontSize?: number }>>({
-    name: { x: 0, y: 0, fontSize: 36 },
-    designation: { x: 0, y: 0, fontSize: 18 },
+  const defaultOffsets: Record<string, { x: number; y: number; scale?: number; fontSize?: number }> = {
+    name: { x: 0, y: 0, fontSize: layoutType.startsWith("vertical") ? 32 : 44 },
+    designation: { x: 0, y: 0, fontSize: 15 },
     logo: { x: 0, y: 0, scale: 1.0 },
     qr: { x: 0, y: 0, scale: 1.0 },
     contacts: { x: 0, y: 0, scale: 1.0 },
     address: { x: 0, y: 0, scale: 1.0 },
     socials: { x: 0, y: 0, scale: 1.0 },
     photo: { x: 0, y: 0, scale: 1.0 },
-  });
+  };
 
-  // Sync offsets from database when loaded
+  const [offsets, setOffsets] = useState(defaultOffsets);
+
   useEffect(() => {
     if (savedOffsets) {
       setOffsets((prev) => ({ ...prev, ...savedOffsets }));
     }
   }, [savedOffsets]);
 
-  // Bubble up offsets when changed
-  const updateOffsets = (newOffsets: Record<string, { x: number; y: number; scale?: number; fontSize?: number }>) => {
+  const updateOffsets = (newOffsets: typeof offsets) => {
     setOffsets(newOffsets);
-    if (onOffsetsChange) {
-      onOffsetsChange(newOffsets);
-    }
+    if (onOffsetsChange) onOffsetsChange(newOffsets);
   };
 
   const handleSliderChange = (key: string, prop: "fontSize" | "scale", value: number) => {
-    const updated = {
-      ...offsets,
-      [key]: {
-        ...(offsets[key] || { x: 0, y: 0 }),
-        [prop]: value
-      }
-    };
-    updateOffsets(updated);
+    updateOffsets({ ...offsets, [key]: { ...(offsets[key] || { x: 0, y: 0 }), [prop]: value } });
   };
 
-  // Drag listeners
+  const handleResizeStart = (e: React.MouseEvent, item: string) => {
+    if (!editorMode) return;
+    e.preventDefault(); e.stopPropagation();
+    setResizingItem(item);
+    setResizeStart({ clientX: e.clientX, scale: offsets[item]?.scale || 1.0 });
+  };
+
   const handleMouseDown = (e: React.MouseEvent, item: string) => {
     if (!editorMode) return;
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     setDraggedItem(item);
     setDragStart({ x: e.clientX, y: e.clientY });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (resizingItem && editorMode) {
+      e.preventDefault();
+      const dx = e.clientX - resizeStart.clientX;
+      const newScale = Math.max(0.3, Math.min(2.5, resizeStart.scale + dx / 150));
+      updateOffsets({ ...offsets, [resizingItem]: { ...(offsets[resizingItem] || { x: 0, y: 0 }), scale: parseFloat(newScale.toFixed(2)) } });
+      return;
+    }
     if (!draggedItem || !editorMode) return;
-    
-    // Scale client delta based on SVG viewport width/height relative to DOM container
     const rect = cardRef.current?.getBoundingClientRect();
     if (!rect) return;
-
-    const scaleX = (layoutType.startsWith("vertical") ? 600 : 800) / rect.width;
-    const scaleY = (layoutType.startsWith("vertical") ? 900 : 450) / rect.height;
-
+    const svgW = layoutType.startsWith("vertical") ? 514 : 800;
+    const svgH = layoutType.startsWith("vertical") ? 900 : 457;
+    const scaleX = svgW / rect.width;
+    const scaleY = svgH / rect.height;
     const dx = (e.clientX - dragStart.x) * scaleX;
     const dy = (e.clientY - dragStart.y) * scaleY;
-
-    const currentOffset = offsets[draggedItem] || { x: 0, y: 0, scale: 1.0, fontSize: 18 };
-
-    const newOffsets = {
-      ...offsets,
-      [draggedItem]: {
-        ...currentOffset,
-        x: currentOffset.x + dx,
-        y: currentOffset.y + dy,
-      },
-    };
-
-    updateOffsets(newOffsets);
+    const cur = offsets[draggedItem] || { x: 0, y: 0 };
+    updateOffsets({ ...offsets, [draggedItem]: { ...cur, x: cur.x + dx, y: cur.y + dy } });
     setDragStart({ x: e.clientX, y: e.clientY });
   };
 
-  const handleMouseUp = () => {
-    setDraggedItem(null);
-  };
-
-  // Helpers to split first/last names
-  const nameParts = (cardData.name || "").trim().split(/\s+/);
-  const firstName = nameParts[0] || "Babu";
-  const lastName = nameParts.slice(1).join(" ") || "Chakraborty";
+  const handleMouseUp = () => { setDraggedItem(null); setResizingItem(null); };
 
   const brandColors = cardData.brandColors || { primary: "#047857", secondary: "#0d9488" };
 
-  // Helper for QR redirection homepage URL
-  const getQRRedirectURL = () => {
-    if (cardData.social?.website && cardData.social.website !== "Data Missing") {
-      let ws = cardData.social.website.trim();
-      if (!/^https?:\/\//i.test(ws)) {
-        ws = `https://${ws}`;
-      }
-      return ws;
+  // Split name into first + last for two-tone rendering
+  const nameParts = (cardData.name || "").trim().split(/\s+/);
+  const firstName = nameParts[0] || "FULL NAME";
+  const lastName = nameParts.slice(1).join(" ") || "";
+
+  const getWebsite = () => {
+    const ws = cardData.social?.website;
+    if (ws && ws !== "Data Missing") {
+      return /^https?:\/\//i.test(ws) ? ws : `https://${ws}`;
     }
+    return null;
+  };
+
+  const getQRValue = () => {
+    const ws = getWebsite();
+    if (ws) return ws;
     return cardId ? `${window.location.origin}/card/${cardId}` : "https://www.sorigin.in";
   };
 
-  // Export functions
+  // ── Export helpers ───────────────────────────────────────────────────────────
+
+  // Build a flat canvas with the card rendered at 3x resolution using html2canvas-like approach
+  // We draw into canvas directly using the design coordinates (no foreignObject workaround needed)
+  const buildCardCanvas = (): Promise<HTMLCanvasElement> => {
+    return new Promise((resolve, reject) => {
+      // Find the SVG in the card container div
+      const container = cardRef.current;
+      if (!container) { reject(new Error("No container")); return; }
+      const svgEl = container.querySelector("svg") as SVGSVGElement | null;
+      if (!svgEl) { reject(new Error("No SVG")); return; }
+
+      const vbWidth = svgEl.viewBox.baseVal.width || 800;
+      const vbHeight = svgEl.viewBox.baseVal.height || 457;
+      const scale = 3;
+
+      // Serialize the SVG to blob
+      const serialized = new XMLSerializer().serializeToString(svgEl);
+      const blob = new Blob([serialized], { type: "image/svg+xml;charset=utf-8" });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = vbWidth * scale;
+        canvas.height = vbHeight * scale;
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(blobUrl);
+        resolve(canvas);
+      };
+      img.onerror = (err) => { URL.revokeObjectURL(blobUrl); reject(err); };
+      img.src = blobUrl;
+    });
+  };
+
   const downloadSVG = () => {
-    const svgEl = svgRef.current;
+    const svgEl = cardRef.current?.querySelector("svg");
     if (!svgEl) return;
     const svgString = new XMLSerializer().serializeToString(svgEl);
     const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `${cardData.name.replace(/\s+/g, "_") || "glasscard"}.svg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("SVG Card downloaded successfully!");
+    link.download = `${(cardData.name || "card").replace(/\s+/g, "_")}.svg`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    toast.success("SVG downloaded!");
   };
 
   const downloadPNG = async () => {
-    const svgEl = svgRef.current;
-    if (!svgEl) return;
     setIsExporting(true);
     try {
-      const dataUrl = await convertSvgToPngDataUrl(svgEl, 3);
+      const canvas = await buildCardCanvas();
       const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `${cardData.name.replace(/\s+/g, "_") || "glasscard"}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("PNG Card downloaded successfully!");
+      link.href = canvas.toDataURL("image/png");
+      link.download = `${(cardData.name || "card").replace(/\s+/g, "_")}.png`;
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      toast.success("PNG downloaded!");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to generate PNG image");
-    } finally {
-      setIsExporting(false);
-    }
+      toast.error("PNG export failed");
+    } finally { setIsExporting(false); }
   };
 
   const downloadPDF = async () => {
-    const svgEl = svgRef.current;
-    if (!svgEl) return;
     setIsExporting(true);
     try {
-      const pngUrl = await convertSvgToPngDataUrl(svgEl, 3);
-      const viewBoxWidth = svgEl.viewBox?.baseVal?.width || 800;
-      const viewBoxHeight = svgEl.viewBox?.baseVal?.height || 450;
-      
-      const pdf = new jsPDF({
-        orientation: layoutType.startsWith("vertical") ? "portrait" : "landscape",
-        unit: "px",
-        format: [viewBoxWidth, viewBoxHeight],
-      });
-      pdf.addImage(pngUrl, "PNG", 0, 0, viewBoxWidth, viewBoxHeight);
-      pdf.save(`${cardData.name.replace(/\s+/g, "_") || "glasscard"}.pdf`);
-      toast.success("PDF Card downloaded successfully!");
+      const canvas = await buildCardCanvas();
+      const pngUrl = canvas.toDataURL("image/png");
+      const svgEl = cardRef.current?.querySelector("svg") as SVGSVGElement;
+      const vbW = svgEl?.viewBox?.baseVal?.width || 800;
+      const vbH = svgEl?.viewBox?.baseVal?.height || 457;
+      const isVert = layoutType.startsWith("vertical");
+
+      const pdf = new jsPDF({ orientation: isVert ? "portrait" : "landscape", unit: "px", format: [vbW, vbH] });
+      pdf.addImage(pngUrl, "PNG", 0, 0, vbW, vbH);
+
+      // Overlay clickable links
+      const phone = cardData.phone || "";
+      const email = cardData.email || "";
+      const ws = getWebsite() || getQRValue();
+      const cleanPhone = phone.replace(/[^0-9]/g, "");
+      const li = cardData.social.linkedin || "";
+      const ig = cardData.social.instagram || "";
+      const yt = cardData.social.youtube || "";
+      const tw = cardData.social.twitter || "";
+      const fb = cardData.social.facebook || "";
+
+      const cx = offsets.contacts?.x || 0, cy = offsets.contacts?.y || 0;
+      const sx = offsets.socials?.x || 0, sy = offsets.socials?.y || 0;
+      const qx = offsets.qr?.x || 0, qy = offsets.qr?.y || 0;
+
+      if (isVert) {
+        // Vertical layout links
+        pdf.link(40 + cx, 380 + cy, 220, 55, { url: `tel:${phone}` });
+        pdf.link(270 + cx, 380 + cy, 220, 55, { url: `https://wa.me/${cleanPhone}` });
+        pdf.link(40 + cx, 455 + cy, 220, 55, { url: `mailto:${email}` });
+        pdf.link(270 + cx, 455 + cy, 220, 55, { url: ws });
+        pdf.link(300 + qx, 570 + qy, 175, 175, { url: ws });
+        pdf.link(60 + sx, 833 + sy, 40, 40, { url: li });
+        pdf.link(155 + sx, 833 + sy, 40, 40, { url: ig });
+        pdf.link(245 + sx, 833 + sy, 40, 40, { url: yt });
+        pdf.link(335 + sx, 833 + sy, 40, 40, { url: tw });
+        pdf.link(420 + sx, 833 + sy, 40, 40, { url: fb });
+      } else {
+        // Horizontal layout links
+        if (layoutType === "horizontal-no-photo") {
+          pdf.link(50 + cx, 265 + cy, 220, 50, { url: `tel:${phone}` });
+          pdf.link(310 + cx, 265 + cy, 220, 50, { url: `mailto:${email}` });
+          pdf.link(50 + cx, 330 + cy, 220, 50, { url: `https://wa.me/${cleanPhone}` });
+          pdf.link(310 + cx, 330 + cy, 220, 50, { url: ws });
+          pdf.link(640 + qx, 200 + qy, 115, 115, { url: ws });
+        } else {
+          pdf.link(285 + cx, 265 + cy, 200, 50, { url: `tel:${phone}` });
+          pdf.link(285 + cx, 330 + cy, 200, 50, { url: `mailto:${email}` });
+          pdf.link(640 + qx, 200 + qy, 115, 115, { url: ws });
+        }
+        const ax = offsets.address?.x || 0, ay = offsets.address?.y || 0;
+        pdf.link(465 + ax, 405 + ay, 40, 40, { url: li });
+        pdf.link(520 + ax, 405 + ay, 40, 40, { url: ig });
+        pdf.link(575 + ax, 405 + ay, 40, 40, { url: yt });
+        pdf.link(630 + ax, 405 + ay, 40, 40, { url: tw });
+        pdf.link(685 + ax, 405 + ay, 40, 40, { url: fb });
+      }
+
+      pdf.save(`${(cardData.name || "card").replace(/\s+/g, "_")}.pdf`);
+      toast.success("PDF with clickable links downloaded!");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to generate PDF document");
-    } finally {
-      setIsExporting(false);
+      toast.error("PDF export failed");
+    } finally { setIsExporting(false); }
+  };
+
+  // WhatsApp share: sends card image as PNG via Web Share API if available,
+  // otherwise sends a link. On mobile browsers this shares the actual image.
+  const shareWhatsApp = async () => {
+    try {
+      const canvas = await buildCardCanvas();
+      const blob = await new Promise<Blob>((res, rej) =>
+        canvas.toBlob((b) => b ? res(b) : rej(new Error("No blob")), "image/png")
+      );
+      const file = new File([blob], `${(cardData.name || "card").replace(/\s+/g, "_")}_card.png`, { type: "image/png" });
+
+      // Try Web Share API with file (works on Android Chrome, Safari iOS)
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `${cardData.name} - Digital Card`,
+          text: `📇 ${cardData.name}\n${cardData.designation}\n\nConnect: ${getWebsite() || window.location.origin}`,
+        });
+      } else {
+        // Fallback: open WhatsApp with pre-filled text + link
+        const link = cardId ? `${window.location.origin}/card/${cardId}` : getWebsite() || window.location.origin;
+        const msg = `📇 *${cardData.name}*\n*${cardData.designation}* | ${cardData.officeName}\n📞 ${cardData.phone}\n📧 ${cardData.email}\n🔗 ${link}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+      }
+    } catch {
+      // Final fallback
+      const link = cardId ? `${window.location.origin}/card/${cardId}` : getWebsite() || window.location.origin;
+      const msg = `📇 *${cardData.name}*\n*${cardData.designation}*\n${cardData.phone}\n${cardData.email}\n${link}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     }
   };
 
-  const shareWhatsApp = () => {
-    const message = `Check out my digital visiting card! Click to connect:\n\n${cardData.name}\n${cardData.designation}\n\n👉 ${window.location.origin}/card/${cardId || "demo"}`;
-    const encoded = encodeURIComponent(message);
-    window.open(`https://wa.me/?text=${encoded}`, "_blank");
-  };
+  // ── Drag editor helpers ──────────────────────────────────────────────────────
+  const dragHandle = (item: string) => ({
+    style: { cursor: editorMode ? "move" as const : "default" as const },
+    onMouseDown: (e: React.MouseEvent) => handleMouseDown(e, item),
+  });
 
-  // Embed premium typography and classes
-  const svgStyle = `
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-    text {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    .card-name {
-      font-family: 'Outfit', sans-serif;
-    }
-    .draggable-rect {
-      stroke: #06b6d4;
-      stroke-width: 1.5;
-      stroke-dasharray: 4;
-      fill: #06b6d4;
-      fill-opacity: 0.05;
-    }
-    .text-data-missing {
-      fill: #ef4444 !important;
-      font-weight: 700 !important;
-    }
-  `;
+  const resizeHandle = (item: string, cx: number, cy: number) => editorMode && (
+    <circle cx={cx} cy={cy} r={6} fill="#06b6d4" stroke="#fff" strokeWidth="1.5"
+      style={{ cursor: "nwse-resize" }}
+      onMouseDown={(e) => handleResizeStart(e, item)} />
+  );
 
-  // Render text element with potential Data Missing class styling
-  const renderText = (
-    textVal: string, 
-    fallback: string, 
-    x: number | string, 
-    y: number | string, 
-    fontSize: number, 
-    fontWeight: string, 
-    fillColor: string, 
-    options: any = {}
-  ) => {
-    const isMissing = textVal === "Data Missing" || textVal === "missing value";
-    const displayVal = isMissing ? "Data Missing" : textVal || fallback;
-    const finalFill = isMissing ? "#ef4444" : fillColor;
+  // ── Shared SVG styles string ─────────────────────────────────────────────────
+  const svgDefs = (
+    <defs>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        .fc-name { font-family: 'Outfit', sans-serif; }
+        .fc-body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .drag-outline { stroke: #06b6d4; stroke-width: 1.5; stroke-dasharray: 4; fill: #06b6d4; fill-opacity: 0.04; }
+      `}</style>
+    </defs>
+  );
 
+  // ── Multi-line text helper (SVG tspan) ───────────────────────────────────────
+  const multiline = (text: string, x: number, y: number, maxChars: number, lineHeight: number, style: object) => {
+    const words = (text || "").split(/\s+/);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      if ((cur + " " + w).trim().length > maxChars) { lines.push(cur.trim()); cur = w; }
+      else cur = cur ? cur + " " + w : w;
+    }
+    if (cur) lines.push(cur.trim());
     return (
-      <text
-        x={x}
-        y={y}
-        fontSize={fontSize}
-        fontWeight={fontWeight}
-        fill={finalFill}
-        {...options}
-      >
-        {displayVal}
+      <text x={x} y={y} {...style}>
+        {lines.slice(0, 3).map((l, i) => (
+          <tspan key={i} x={x} dy={i === 0 ? 0 : lineHeight}>{l}</tspan>
+        ))}
       </text>
     );
   };
 
-  // Render SVG Cards dynamically
-  const renderSvgCard = () => {
-    // ----------------------------------------------------
-    // Layout 1: Horizontal - No Photo
-    // ----------------------------------------------------
-    if (layoutType === "horizontal-no-photo") {
-      return (
-        <svg
-          id="digital-card-svg"
-          ref={svgRef}
-          viewBox="0 0 800 450"
-          className="w-full h-full object-contain select-none"
-          xmlns="http://www.w3.org/2000/svg"
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          <defs>{svgStyle}</defs>
-          <rect width="800" height="450" fill="#ffffff" rx="16" />
+  // ═════════════════════════════════════════════════════════════════════════════
+  // Layout 1: Horizontal No-Photo   (viewBox 800×457)
+  // Reference: media__1782549394704.jpg  — clean white, logo top-right, name top-left,
+  //            3 contact icons in a row, address + socials bottom bar, QR bottom-right
+  // ═════════════════════════════════════════════════════════════════════════════
+  const renderHorizontalNoPhoto = () => (
+    <svg id="digital-card-svg" ref={undefined} viewBox="0 0 800 457"
+      className="w-full h-full" xmlns="http://www.w3.org/2000/svg"
+      onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+      {svgDefs}
+      <rect width="800" height="457" fill="#ffffff" rx="12" />
 
-          {/* Logo */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "logo")}
-            transform={`translate(${offsets.logo?.x || 0}, ${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="630" y="15" width="125" height="48" rx="6" className="draggable-rect" />}
-            <rect x="635" y="20" width="115" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1" fill="none" />
-            {cardData.brandLogo ? (
-              <image href={cardData.brandLogo} x="637" y="22" width="111" height="34" preserveAspectRatio="xMidYMid meet" />
-            ) : (
-              <text x="692.5" y="43" textAnchor="middle" fontSize="12" fontWeight="500" fill={brandColors.primary}>Logo</text>
-            )}
+      {/* ── Logo (top-right) ── */}
+      <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
+        <rect x="640" y="18" width="120" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1.5" fill="none" />
+        {cardData.brandLogo
+          ? <image href={cardData.brandLogo} x="642" y="20" width="116" height="34" preserveAspectRatio="xMidYMid meet" />
+          : <text x="700" y="41" textAnchor="middle" fontSize="12" fontWeight="600" fill={brandColors.primary} className="fc-body">Logo</text>}
+        {editorMode && <><rect x="636" y="13" width="128" height="48" rx="6" className="drag-outline" />{resizeHandle("logo", 764, 61)}</>}
+      </g>
+
+      {/* ── Name (top-left, two-tone) ── */}
+      <g {...dragHandle("name")} transform={`translate(${offsets.name?.x || 0},${offsets.name?.y || 0})`}>
+        {/* First name in black, last name in green – rendered as two tspan on same line */}
+        <text x="50" y="100" className="fc-name" fontSize={offsets.name?.fontSize || 44} fontWeight="800" letterSpacing="-0.5">
+          <tspan fill="#000000">{firstName}</tspan>
+          {lastName && <tspan fill={brandColors.primary}> {lastName}</tspan>}
+        </text>
+        {/* If name is very long, reduce font: the tspan will wrap using the viewBox */}
+        <line x1="50" y1="115" x2="95" y2="115" stroke={brandColors.primary} strokeWidth="5" strokeLinecap="round" />
+        {editorMode && <rect x="44" y="55" width="460" height="70" rx="6" className="drag-outline" />}
+      </g>
+
+      {/* ── Designation + Office ── */}
+      <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
+        <text x="50" y="142" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 40) || "Head of Marketing"}</text>
+        <text x="50" y="162" fontSize={offsets.designation?.fontSize || 15} fontWeight="500" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 35) || "Company Name"}</text>
+        {editorMode && <rect x="44" y="128" width="440" height="44" rx="6" className="drag-outline" />}
+      </g>
+
+      {/* ── Contact Row: Phone | WhatsApp | Email ── */}
+      <g {...dragHandle("contacts")} transform={`translate(${offsets.contacts?.x || 0},${offsets.contacts?.y || 0}) scale(${offsets.contacts?.scale || 1})`}>
+        {editorMode && <rect x="40" y="190" width="560" height="65" rx="6" className="drag-outline" />}
+        {/* Separator line */}
+        <line x1="50" y1="195" x2="620" y2="195" stroke="#e5e7eb" strokeWidth="1" />
+
+        {/* Phone */}
+        <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
+          <circle cx="72" cy="225" r="16" fill={brandColors.primary} />
+          <path d={ICONS.phone} fill="#fff" transform="translate(63.5,216.5) scale(0.7)" />
+          <text x="98" y="218" fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">PHONE</text>
+          <text x="98" y="232" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 22) || "Data Missing"}</text>
+        </a>
+
+        {/* Divider */}
+        <line x1="220" y1="208" x2="220" y2="245" stroke="#d1d5db" strokeWidth="1" />
+
+        {/* WhatsApp */}
+        <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">
+          <circle cx="248" cy="225" r="16" fill={brandColors.primary} />
+          <path d={ICONS.whatsapp} fill="#fff" transform="translate(239.5,216.5) scale(0.7)" />
+          <text x="274" y="218" fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">WHATSAPP</text>
+          <text x="274" y="232" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 22) || "Data Missing"}</text>
+        </a>
+
+        {/* Divider */}
+        <line x1="410" y1="208" x2="410" y2="245" stroke="#d1d5db" strokeWidth="1" />
+
+        {/* Email */}
+        <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
+          <circle cx="438" cy="225" r="16" fill={brandColors.primary} />
+          <path d={ICONS.email} fill="#fff" transform="translate(429.5,216.5) scale(0.7)" />
+          <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform="translate(429.5,216.5) scale(0.7)" />
+          <text x="464" y="218" fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">EMAIL</text>
+          <text x="464" y="232" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.email, 30) || "Data Missing"}</text>
+        </a>
+        <line x1="50" y1="260" x2="620" y2="260" stroke="#e5e7eb" strokeWidth="1" />
+      </g>
+
+      {/* ── Address bottom-left ── */}
+      <g {...dragHandle("address")} transform={`translate(${offsets.address?.x || 0},${offsets.address?.y || 0})`}>
+        {editorMode && <rect x="40" y="268" width="430" height="50" rx="6" className="drag-outline" />}
+        <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(48,275) scale(0.72)" />
+        <text x="72" y="286" fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
+        {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 72, 302, 55, 13,
+          { fontSize: 9.5, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
+
+        {/* Social Icons (bottom row) */}
+        <line x1="50" y1="345" x2="740" y2="345" stroke="#e5e7eb" strokeWidth="1" />
+        <SocialIcon cx={480} cy={388} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
+        <line x1="510" y1="373" x2="510" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
+        <SocialIcon cx={540} cy={388} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" />
+        <line x1="570" y1="373" x2="570" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
+        <SocialIcon cx={600} cy={388} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YouTube" />
+        <line x1="630" y1="373" x2="630" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
+        <SocialIcon cx={660} cy={388} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" />
+        <line x1="690" y1="373" x2="690" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
+        <SocialIcon cx={720} cy={388} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" />
+      </g>
+
+      {/* ── QR Code (bottom-right) ── */}
+      <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
+        <a href={getQRValue()} target="_blank" rel="noopener noreferrer">
+          <rect x="640" y="195" width="118" height="118" rx="10" stroke={brandColors.primary} strokeWidth="1.5" fill="#ffffff" />
+          <svg x="648" y="203" width="102" height="102">
+            <QRCodeSVG value={getQRValue()} size={102} level="H" includeMargin={false} />
+          </svg>
+          <rect x="640" y="319" width="118" height="22" rx="11" fill={brandColors.primary} />
+          <text x="699" y="333" textAnchor="middle" fontSize="8" fontWeight="700" fill="#fff" className="fc-body">SCAN TO CONNECT</text>
+        </a>
+        {editorMode && <><rect x="635" y="190" width="128" height="157" rx="6" className="drag-outline" />{resizeHandle("qr", 763, 347)}</>}
+      </g>
+    </svg>
+  );
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // Layout 2: Horizontal With-Photo  (viewBox 800×457)
+  // ═════════════════════════════════════════════════════════════════════════════
+  const renderHorizontalWithPhoto = () => (
+    <svg id="digital-card-svg" viewBox="0 0 800 457"
+      className="w-full h-full" xmlns="http://www.w3.org/2000/svg"
+      onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+      {svgDefs}
+      <defs>
+        <clipPath id="photo-clip-h"><circle cx="155" cy="185" r="130" /></clipPath>
+      </defs>
+      <rect width="800" height="457" fill="#ffffff" rx="12" />
+
+      {/* ── Photo (left circular) ── */}
+      <g {...dragHandle("photo")} transform={`translate(${offsets.photo?.x || 0},${offsets.photo?.y || 0}) scale(${offsets.photo?.scale || 1})`}>
+        <circle cx="155" cy="185" r="130" fill="#f3f4f6" stroke="#e5e7eb" strokeWidth="2" />
+        {cardData.headshot
+          ? <image href={cardData.headshot} x="25" y="55" width="260" height="260" clipPath="url(#photo-clip-h)" preserveAspectRatio="xMidYMid slice" />
+          : <>
+            <circle cx="155" cy="155" r="38" fill="#9ca3af" />
+            <path d="M65,280 C65,235 100,218 155,218 C210,218 245,235 245,280 Z" fill="#9ca3af" clipPath="url(#photo-clip-h)" />
+            <text x="155" y="310" textAnchor="middle" fontSize="11" fontWeight="600" fill="#6b7280" className="fc-body">UPLOAD PHOTO</text>
+          </>}
+        {editorMode && <><circle cx="155" cy="185" r="133" className="drag-outline" />{resizeHandle("photo", 280, 310)}</>}
+      </g>
+
+      {/* ── Logo (top-right) ── */}
+      <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
+        <rect x="640" y="18" width="120" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1.5" fill="none" />
+        {cardData.brandLogo
+          ? <image href={cardData.brandLogo} x="642" y="20" width="116" height="34" preserveAspectRatio="xMidYMid meet" />
+          : <text x="700" y="41" textAnchor="middle" fontSize="12" fontWeight="600" fill={brandColors.primary} className="fc-body">Logo</text>}
+        {editorMode && <><rect x="636" y="13" width="128" height="48" rx="6" className="drag-outline" />{resizeHandle("logo", 764, 61)}</>}
+      </g>
+
+      {/* ── Name ── */}
+      <g {...dragHandle("name")} transform={`translate(${offsets.name?.x || 0},${offsets.name?.y || 0})`}>
+        <text x="310" y="90" className="fc-name" fontSize={offsets.name?.fontSize || 44} fontWeight="800" letterSpacing="-0.5">
+          <tspan fill="#000000">{firstName}</tspan>
+          {lastName && <tspan fill={brandColors.primary}> {lastName}</tspan>}
+        </text>
+        <line x1="310" y1="107" x2="355" y2="107" stroke={brandColors.primary} strokeWidth="5" strokeLinecap="round" />
+        {editorMode && <rect x="304" y="45" width="380" height="70" rx="6" className="drag-outline" />}
+      </g>
+
+      {/* ── Designation ── */}
+      <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
+        <text x="310" y="133" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 35) || "Head of Marketing"}</text>
+        <text x="310" y="153" fontSize={offsets.designation?.fontSize || 15} fontWeight="500" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
+        {editorMode && <rect x="304" y="118" width="340" height="44" rx="6" className="drag-outline" />}
+      </g>
+
+      {/* ── Contacts (stacked: Phone, Email, Website, Address) ── */}
+      <g {...dragHandle("contacts")} transform={`translate(${offsets.contacts?.x || 0},${offsets.contacts?.y || 0})`}>
+        {editorMode && <rect x="304" y="173" width="310" height="160" rx="6" className="drag-outline" />}
+        <line x1="310" y1="178" x2="610" y2="178" stroke="#e5e7eb" strokeWidth="1" />
+        {/* Phone */}
+        <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
+          <circle cx="325" cy="205" r="13" fill={brandColors.primary} />
+          <path d={ICONS.phone} fill="#fff" transform="translate(318.5,198.5) scale(0.55)" />
+          <text x="348" y="210" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 28) || "Data Missing"}</text>
+        </a>
+        {/* Email */}
+        <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
+          <circle cx="325" cy="240" r="13" fill={brandColors.primary} />
+          <path d={ICONS.email} fill="#fff" transform="translate(318.5,233.5) scale(0.55)" />
+          <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform="translate(318.5,233.5) scale(0.55)" />
+          <text x="348" y="245" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.email, 28) || "Data Missing"}</text>
+        </a>
+        {/* Website */}
+        <a href={getWebsite() || "#"} target="_blank" rel="noopener noreferrer">
+          <circle cx="325" cy="275" r="13" fill={brandColors.primary} />
+          <path d={ICONS.globe} fill="#fff" transform="translate(318.5,268.5) scale(0.55)" />
+          <text x="348" y="280" fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.social?.website || "", 28) || "Data Missing"}</text>
+        </a>
+        {/* Address */}
+        <a href="#" target="_blank" rel="noopener noreferrer">
+          <circle cx="325" cy="310" r="13" fill={brandColors.primary} />
+          <path d={ICONS.mapPin} fill="#fff" transform="translate(318.5,303.5) scale(0.55)" />
+          <text x="348" y="315" fontSize="11" fontWeight="600" fill="#111827" className="fc-body">{truncate(cardData.address || "City, State, Country", 28)}</text>
+        </a>
+      </g>
+
+      {/* Vertical divider */}
+      <line x1="622" y1="178" x2="622" y2="345" stroke="#e5e7eb" strokeWidth="1" />
+
+      {/* ── QR ── */}
+      <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
+        <a href={getQRValue()} target="_blank" rel="noopener noreferrer">
+          <rect x="638" y="178" width="118" height="118" rx="10" stroke={brandColors.primary} strokeWidth="1.5" fill="#fff" />
+          <svg x="646" y="186" width="102" height="102">
+            <QRCodeSVG value={getQRValue()} size={102} level="H" includeMargin={false} />
+          </svg>
+          <rect x="638" y="302" width="118" height="22" rx="11" fill={brandColors.primary} />
+          <text x="697" y="317" textAnchor="middle" fontSize="8" fontWeight="700" fill="#fff" className="fc-body">SCAN TO CONNECT</text>
+        </a>
+        {editorMode && <><rect x="633" y="173" width="128" height="157" rx="6" className="drag-outline" />{resizeHandle("qr", 761, 330)}</>}
+      </g>
+
+      {/* ── Bottom bar: Address + Socials ── */}
+      <line x1="50" y1="350" x2="750" y2="350" stroke="#e5e7eb" strokeWidth="1" />
+      <g {...dragHandle("address")} transform={`translate(${offsets.address?.x || 0},${offsets.address?.y || 0})`}>
+        {editorMode && <rect x="44" y="350" width="710" height="90" rx="6" className="drag-outline" />}
+        <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(53,359) scale(0.75)" />
+        <text x="75" y="370" fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
+        {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 75, 386, 50, 13,
+          { fontSize: 9, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
+
+        <SocialIcon cx={490} cy={390} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
+        <line x1="514" y1="376" x2="514" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
+        <SocialIcon cx={543} cy={390} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" />
+        <line x1="567" y1="376" x2="567" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
+        <SocialIcon cx={596} cy={390} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YouTube" />
+        <line x1="620" y1="376" x2="620" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
+        <SocialIcon cx={649} cy={390} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" />
+        <line x1="673" y1="376" x2="673" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
+        <SocialIcon cx={702} cy={390} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" />
+      </g>
+    </svg>
+  );
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // Layout 3 & 4: Vertical  (viewBox 514×900)
+  // ═════════════════════════════════════════════════════════════════════════════
+  const renderVertical = () => {
+    const hasPhoto = layoutType === "vertical-with-photo";
+    return (
+      <svg id="digital-card-svg" viewBox="0 0 514 900"
+        className="w-full h-full" xmlns="http://www.w3.org/2000/svg"
+        onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+        {svgDefs}
+        <defs>
+          <clipPath id="photo-clip-v"><circle cx="385" cy="195" r="90" /></clipPath>
+        </defs>
+        <rect width="514" height="900" fill="#ffffff" rx="12" />
+
+        {/* ── Logo ── */}
+        <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
+          <rect x="355" y="22" width="120" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1.5" fill="none" />
+          {cardData.brandLogo
+            ? <image href={cardData.brandLogo} x="357" y="24" width="116" height="34" preserveAspectRatio="xMidYMid meet" />
+            : <text x="415" y="45" textAnchor="middle" fontSize="12" fontWeight="600" fill={brandColors.primary} className="fc-body">Logo</text>}
+          {editorMode && <><rect x="350" y="17" width="130" height="48" rx="6" className="drag-outline" />{resizeHandle("logo", 480, 65)}</>}
+        </g>
+
+        {/* ── Profile Photo (right column, if enabled) ── */}
+        {hasPhoto && (
+          <g {...dragHandle("photo")} transform={`translate(${offsets.photo?.x || 0},${offsets.photo?.y || 0}) scale(${offsets.photo?.scale || 1})`}>
+            <circle cx="385" cy="195" r="90" fill="#f3f4f6" stroke="#e5e7eb" strokeWidth="2" />
+            {cardData.headshot
+              ? <image href={cardData.headshot} x="295" y="105" width="180" height="180" clipPath="url(#photo-clip-v)" preserveAspectRatio="xMidYMid slice" />
+              : <>
+                <circle cx="385" cy="175" r="28" fill="#9ca3af" />
+                <path d="M330,255 C330,230 355,220 385,220 C415,220 440,230 440,255 Z" fill="#9ca3af" clipPath="url(#photo-clip-v)" />
+                <text x="385" y="272" textAnchor="middle" fontSize="10" fontWeight="600" fill="#6b7280" className="fc-body">UPLOAD PHOTO</text>
+              </>}
+            {editorMode && <><circle cx="385" cy="195" r="93" className="drag-outline" />{resizeHandle("photo", 470, 280)}</>}
           </g>
+        )}
 
-          {/* Name */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "name")}
-            transform={`translate(${offsets.name?.x || 0}, ${offsets.name?.y || 0})`}
-          >
-            {editorMode && <rect x="45" y="60" width="450" height="110" rx="6" className="draggable-rect" />}
-            {renderText(firstName, "Babu", 50, 105, offsets.name?.fontSize || 48, "700", "#000000", { className: "card-name" })}
-            {lastName && renderText(lastName, "Chakraborty", 50, 152, offsets.name?.fontSize || 48, "700", brandColors.primary, { className: "card-name" })}
-            <line x1="50" y1="178" x2="95" y2="178" stroke={brandColors.primary} strokeWidth="5" />
-          </g>
+        {/* ── Name ── */}
+        <g {...dragHandle("name")} transform={`translate(${offsets.name?.x || 0},${offsets.name?.y || 0})`}>
+          <text x="38" y={hasPhoto ? 145 : 160} className="fc-name" fontSize={offsets.name?.fontSize || 32} fontWeight="800" letterSpacing="-0.5" fill="#000000">
+            <tspan x="38">{firstName}</tspan>
+            {lastName && <tspan x="38" dy={offsets.name?.fontSize ? offsets.name.fontSize + 4 : 36} fill={brandColors.primary}>{lastName}</tspan>}
+          </text>
+          <line x1="38" y1={hasPhoto ? 200 : 225} x2="83" y2={hasPhoto ? 200 : 225} stroke={brandColors.primary} strokeWidth="5" strokeLinecap="round" />
+          {editorMode && <rect x="32" y={hasPhoto ? 105 : 120} width={hasPhoto ? 255 : 435} height="100" rx="6" className="drag-outline" />}
+        </g>
 
-          {/* Designation & Office */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "designation")}
-            transform={`translate(${offsets.designation?.x || 0}, ${offsets.designation?.y || 0})`}
-          >
-            {editorMode && <rect x="45" y="190" width="450" height="55" rx="6" className="draggable-rect" />}
-            {renderText(cardData.designation, "Head of Marketing", 50, 212, offsets.designation?.fontSize || 18, "700", "#000000")}
-            {renderText(cardData.officeName, "Sorigin Group", 50, 234, offsets.designation?.fontSize || 18, "500", brandColors.primary)}
-          </g>
+        {/* ── Designation ── */}
+        <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
+          <text x="38" y={hasPhoto ? 225 : 255} fontSize={offsets.designation?.fontSize || 14} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 32) || "Head of Marketing"}</text>
+          <text x="38" y={hasPhoto ? 244 : 274} fontSize={offsets.designation?.fontSize || 14} fontWeight="500" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
+          {editorMode && <rect x="32" y={hasPhoto ? 210 : 240} width="440" height="44" rx="6" className="drag-outline" />}
+        </g>
 
-          {/* Contacts Row */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "contacts")}
-            transform={`translate(${offsets.contacts?.x || 0}, ${offsets.contacts?.y || 0}) scale(${offsets.contacts?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="45" y="255" width="530" height="120" rx="6" className="draggable-rect" />}
-            
-            {/* Phone */}
-            <a href={`tel:${cardData.phone}`} target="_blank">
-              <circle cx="68" cy="285" r="15" fill={brandColors.primary} />
-              <path d={RAW_ICONS.phone} fill="#ffffff" transform="translate(60.5, 277.5) scale(0.62)" />
-              <text x="94" y="280" fontSize="9" fontWeight="700" fill="#000000">PHONE</text>
-              {renderText(cardData.phone, "+91 98220 12345", 94, 296, 12, "600", "#000000")}
-            </a>
+        {/* Separator */}
+        <line x1="38" y1={hasPhoto ? 270 : 295} x2="476" y2={hasPhoto ? 270 : 295} stroke="#e5e7eb" strokeWidth="1" />
 
-            {/* Email */}
-            <a href={`mailto:${cardData.email}`} target="_blank">
-              <circle cx="68" cy="345" r="15" fill={brandColors.primary} />
-              <path d={RAW_ICONS.email} fill="#ffffff" transform="translate(60.5, 337.5) scale(0.62)" />
-              <path d={RAW_ICONS.emailLine} stroke="#ffffff" strokeWidth="2" fill="none" transform="translate(60.5, 337.5) scale(0.62)" />
-              <text x="94" y="340" fontSize="9" fontWeight="700" fill="#000000">EMAIL</text>
-              {renderText(cardData.email, "babu.chakraborty@sorigin.in", 94, 356, 12, "600", "#000000")}
-            </a>
+        {/* ── Contacts (2×2 grid) ── */}
+        <g {...dragHandle("contacts")} transform={`translate(${offsets.contacts?.x || 0},${offsets.contacts?.y || 0})`}>
+          {editorMode && <rect x="32" y={hasPhoto ? 274 : 299} width="450" height="160" rx="6" className="drag-outline" />}
+          {/* Phone */}
+          <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
+            <circle cx="60" cy={hasPhoto ? 308 : 333} r="15" fill={brandColors.primary} />
+            <path d={ICONS.phone} fill="#fff" transform={`translate(52.5,${hasPhoto ? 300.5 : 325.5}) scale(0.63)`} />
+            <text x="84" y={hasPhoto ? 302 : 327} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">PHONE</text>
+            <text x="84" y={hasPhoto ? 316 : 341} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 22) || "Data Missing"}</text>
+          </a>
+          {/* WhatsApp */}
+          <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">
+            <circle cx="270" cy={hasPhoto ? 308 : 333} r="15" fill={brandColors.primary} />
+            <path d={ICONS.whatsapp} fill="#fff" transform={`translate(262.5,${hasPhoto ? 300.5 : 325.5}) scale(0.63)`} />
+            <text x="294" y={hasPhoto ? 302 : 327} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">WHATSAPP</text>
+            <text x="294" y={hasPhoto ? 316 : 341} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 22) || "Data Missing"}</text>
+          </a>
+          {/* Email */}
+          <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
+            <circle cx="60" cy={hasPhoto ? 373 : 398} r="15" fill={brandColors.primary} />
+            <path d={ICONS.email} fill="#fff" transform={`translate(52.5,${hasPhoto ? 365.5 : 390.5}) scale(0.63)`} />
+            <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform={`translate(52.5,${hasPhoto ? 365.5 : 390.5}) scale(0.63)`} />
+            <text x="84" y={hasPhoto ? 367 : 392} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">EMAIL</text>
+            <text x="84" y={hasPhoto ? 381 : 406} fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.email, 22) || "Data Missing"}</text>
+          </a>
+          {/* Website */}
+          <a href={getWebsite() || "#"} target="_blank" rel="noopener noreferrer">
+            <circle cx="270" cy={hasPhoto ? 373 : 398} r="15" fill={brandColors.primary} />
+            <path d={ICONS.globe} fill="#fff" transform={`translate(262.5,${hasPhoto ? 365.5 : 390.5}) scale(0.63)`} />
+            <text x="294" y={hasPhoto ? 367 : 392} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">WEBSITE</text>
+            <text x="294" y={hasPhoto ? 381 : 406} fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.social?.website || "", 22) || "Data Missing"}</text>
+          </a>
+        </g>
 
-            {/* WhatsApp */}
-            <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank">
-              <circle cx="330" cy="285" r="15" fill={brandColors.primary} />
-              <path d={RAW_ICONS.whatsapp} fill="#ffffff" transform="translate(322.5, 277.5) scale(0.62)" />
-              <text x="356" y="280" fontSize="9" fontWeight="700" fill="#000000">WHATSAPP</text>
-              {renderText(cardData.phone, "+91 98220 12345", 356, 296, 12, "600", "#000000")}
-            </a>
+        {/* Separator */}
+        <line x1="38" y1={hasPhoto ? 430 : 455} x2="476" y2={hasPhoto ? 430 : 455} stroke="#e5e7eb" strokeWidth="1" />
 
-            {/* Website */}
-            <a href={cardData.social.website || "https://www.sorigin.in"} target="_blank">
-              <circle cx="330" cy="345" r="15" fill={brandColors.primary} />
-              <path d={RAW_ICONS.globe} stroke="#ffffff" strokeWidth="2" fill="none" transform="translate(322.5, 337.5) scale(0.62)" />
-              <text x="356" y="340" fontSize="9" fontWeight="700" fill="#000000">WEBSITE</text>
-              {renderText(cardData.social.website || "", "www.sorigin.in", 356, 356, 12, "600", "#000000")}
-            </a>
-          </g>
+        {/* ── Address (bottom-left) ── */}
+        <g {...dragHandle("address")} transform={`translate(${offsets.address?.x || 0},${offsets.address?.y || 0})`}>
+          {editorMode && <rect x="32" y={hasPhoto ? 434 : 459} width="240" height="180" rx="6" className="drag-outline" />}
+          <path d={ICONS.mapPin} fill={brandColors.primary} transform={`translate(38,${hasPhoto ? 445 : 470}) scale(0.8)`} />
+          <text x="62" y={hasPhoto ? 459 : 484} fontSize="10" fontWeight="700" fill="#111827" className="fc-body">ADDRESS</text>
+          <text x="62" y={hasPhoto ? 476 : 501} fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 25) || "Company Name Pvt. Ltd."}</text>
+          {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089, India", 62, hasPhoto ? 492 : 517, 28, 14,
+            { fontSize: 9.5, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
+        </g>
 
-          {/* QR Code */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "qr")}
-            transform={`translate(${offsets.qr?.x || 0}, ${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="630" y="200" width="125" height="135" rx="6" className="draggable-rect" />}
-            
-            <a href={getQRRedirectURL()} target="_blank">
-              <rect x="635" y="205" width="115" height="115" rx="8" stroke={brandColors.primary} strokeWidth="1.5" fill="#ffffff" />
-              <svg x="645" y="213" width="95" height="95">
-                <QRCode value={getQRRedirectURL()} size={95} level="H" includeMargin={false} />
-              </svg>
-              <rect x="635" y="308" width="115" height="20" rx="4" fill={brandColors.primary} />
-              <text x="692.5" y="321" textAnchor="middle" fontSize="8" fontWeight="700" fill="#ffffff">SCAN TO CONNECT</text>
-            </a>
-          </g>
+        {/* ── QR Code (bottom-right) ── */}
+        <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
+          <a href={getQRValue()} target="_blank" rel="noopener noreferrer">
+            <rect x="295" y={hasPhoto ? 436 : 461} width="178" height="178" rx="12" stroke={brandColors.primary} strokeWidth="1.5" fill="#fff" />
+            <svg x="305" y={hasPhoto ? 446 : 471} width="158" height="158">
+              <QRCodeSVG value={getQRValue()} size={158} level="H" includeMargin={false} />
+            </svg>
+            <rect x="295" y={hasPhoto ? 620 : 645} width="178" height="24" rx="12" fill={brandColors.primary} />
+            <text x="384" y={hasPhoto ? 636 : 661} textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" className="fc-body">SCAN TO CONNECT</text>
+          </a>
+          {editorMode && <><rect x="290" y={hasPhoto ? 431 : 456} width="188" height="222" rx="6" className="drag-outline" />{resizeHandle("qr", 478, hasPhoto ? 653 : 678)}</>}
+        </g>
 
-          <line x1="50" y1="398" x2="750" y2="398" stroke="#e5e7eb" strokeWidth="1.5" />
+        {/* ── Socials Bar (bottom) ── */}
+        <line x1="38" y1={hasPhoto ? 690 : 715} x2="476" y2={hasPhoto ? 690 : 715} stroke="#e5e7eb" strokeWidth="1" />
+        <g {...dragHandle("socials")} transform={`translate(${offsets.socials?.x || 0},${offsets.socials?.y || 0})`}>
+          {editorMode && <rect x="32" y={hasPhoto ? 694 : 719} width="450" height="55" rx="6" className="drag-outline" />}
+          <SocialIcon cx={70} cy={hasPhoto ? 730 : 755} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LINKEDIN" />
+          <line x1="105" y1={hasPhoto ? 715 : 740} x2="105" y2={hasPhoto ? 755 : 780} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={160} cy={hasPhoto ? 730 : 755} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="INSTAGRAM" />
+          <line x1="200" y1={hasPhoto ? 715 : 740} x2="200" y2={hasPhoto ? 755 : 780} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={252} cy={hasPhoto ? 730 : 755} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YOUTUBE" />
+          <line x1="290" y1={hasPhoto ? 715 : 740} x2="290" y2={hasPhoto ? 755 : 780} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={338} cy={hasPhoto ? 730 : 755} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="TWITTER" />
+          <line x1="378" y1={hasPhoto ? 715 : 740} x2="378" y2={hasPhoto ? 755 : 780} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={430} cy={hasPhoto ? 730 : 755} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="FACEBOOK" />
+        </g>
+      </svg>
+    );
+  };
 
-          {/* Address & Socials Bottom Bar */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "address")}
-            transform={`translate(${offsets.address?.x || 0}, ${offsets.address?.y || 0})`}
-          >
-            {editorMode && <rect x="45" y="398" width="710" height="45" rx="6" className="draggable-rect" />}
-            
-            <path d={RAW_ICONS.mapPin} fill={brandColors.primary} transform="translate(52, 405) scale(0.7)" />
-            <circle cx="12" cy="10" r="3" fill="#ffffff" transform="translate(52, 405) scale(0.7)" />
-            <text x="75" y="418" fontSize="10" fontWeight="700" fill="#000000">{cardData.officeName || "Sorigin Group Pvt. Ltd."}</text>
-            {renderText(cardData.address, "7th Floor, Cybercity Commerzone, Mundhwa, Pune - 411089", 75, 430, 9, "500", "#6b7280")}
-
-            {/* Social links */}
-            <g transform="translate(0, 0)">
-              <a href={cardData.social.linkedin || "#"} target="_blank">
-                <circle cx="480" cy="413" r="10" fill="#0077b5" />
-                <path d={RAW_ICONS.linkedin} fill="#ffffff" transform="translate(475, 408) scale(0.42)" />
-                <text x="480" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">LinkedIn</text>
-              </a>
-              <a href={cardData.social.instagram || "#"} target="_blank">
-                <circle cx="535" cy="413" r="10" fill="#e1306c" />
-                <path d={RAW_ICONS.instagram} fill="#ffffff" transform="translate(530, 408) scale(0.42)" />
-                <text x="535" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">Instagram</text>
-              </a>
-              <a href={cardData.social.youtube || "#"} target="_blank">
-                <circle cx="590" cy="413" r="10" fill="#ff0000" />
-                <path d={RAW_ICONS.youtube} fill="#ffffff" transform="translate(585, 408) scale(0.42)" />
-                <text x="590" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">YouTube</text>
-              </a>
-              <a href={cardData.social.twitter || "#"} target="_blank">
-                <circle cx="645" cy="413" r="10" fill="#1da1f2" />
-                <path d={RAW_ICONS.twitter} fill="#ffffff" transform="translate(640, 408) scale(0.42)" />
-                <text x="645" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">Twitter</text>
-              </a>
-              <a href={cardData.social.facebook || "#"} target="_blank">
-                <circle cx="700" cy="413" r="10" fill="#1877f2" />
-                <path d={RAW_ICONS.facebook} fill="#ffffff" transform="translate(695, 408) scale(0.42)" />
-                <text x="700" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">Facebook</text>
-              </a>
-            </g>
-          </g>
-        </svg>
-      );
-    }
-
-    // ----------------------------------------------------
-    // Layout 2: Horizontal - With Photo
-    // ----------------------------------------------------
-    if (layoutType === "horizontal-with-photo") {
-      return (
-        <svg
-          id="digital-card-svg"
-          ref={svgRef}
-          viewBox="0 0 800 450"
-          className="w-full h-full object-contain select-none"
-          xmlns="http://www.w3.org/2000/svg"
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          <defs>
-            {svgStyle}
-            <clipPath id="rect-headshot-clip">
-              <rect x="50" y="55" width="200" height="250" rx="16" />
-            </clipPath>
-          </defs>
-          <rect width="800" height="450" fill="#ffffff" rx="16" />
-
-          {/* Photo Frame */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "photo")}
-            transform={`translate(${offsets.photo?.x || 0}, ${offsets.photo?.y || 0}) scale(${offsets.photo?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="45" y="50" width="210" height="260" rx="16" className="draggable-rect" />}
-            <rect x="50" y="55" width="200" height="250" rx="16" fill="#f3f4f6" stroke="#e5e7eb" strokeWidth="2" />
-            {cardData.headshot ? (
-              <image href={cardData.headshot} x="50" y="55" width="200" height="250" clipPath="url(#rect-headshot-clip)" preserveAspectRatio="xMidYMid slice" />
-            ) : (
-              <g>
-                <circle cx="150" cy="150" r="32" fill="#9ca3af" />
-                <path d="M90,240 C90,200 110,190 150,190 C190,190 210,200 210,240 Z" fill="#9ca3af" clipPath="url(#rect-headshot-clip)" />
-                <text x="150" y="260" textAnchor="middle" fontSize="11" fontWeight="600" fill="#6b7280">UPLOAD PHOTO</text>
-              </g>
-            )}
-          </g>
-
-          {/* Logo */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "logo")}
-            transform={`translate(${offsets.logo?.x || 0}, ${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="630" y="15" width="125" height="48" rx="6" className="draggable-rect" />}
-            <rect x="635" y="20" width="115" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1" fill="none" />
-            {cardData.brandLogo ? (
-              <image href={cardData.brandLogo} x="637" y="22" width="111" height="34" preserveAspectRatio="xMidYMid meet" />
-            ) : (
-              <text x="692.5" y="43" textAnchor="middle" fontSize="12" fontWeight="500" fill={brandColors.primary}>Logo</text>
-            )}
-          </g>
-
-          {/* Name Section */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "name")}
-            transform={`translate(${offsets.name?.x || 0}, ${offsets.name?.y || 0})`}
-          >
-            {editorMode && <rect x="275" y="60" width="345" height="110" rx="6" className="draggable-rect" />}
-            {renderText(firstName, "Babu", 280, 105, offsets.name?.fontSize || 48, "700", "#000000", { className: "card-name" })}
-            {lastName && renderText(lastName, "Chakraborty", 280, 152, offsets.name?.fontSize || 48, "700", brandColors.primary, { className: "card-name" })}
-            <line x1="280" y1="178" x2="325" y2="178" stroke={brandColors.primary} strokeWidth="5" />
-          </g>
-
-          {/* Designation & Office */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "designation")}
-            transform={`translate(${offsets.designation?.x || 0}, ${offsets.designation?.y || 0})`}
-          >
-            {editorMode && <rect x="275" y="190" width="345" height="55" rx="6" className="draggable-rect" />}
-            {renderText(cardData.designation, "Head of Marketing", 280, 212, offsets.designation?.fontSize || 18, "700", "#000000")}
-            {renderText(cardData.officeName, "Sorigin Group", 280, 234, offsets.designation?.fontSize || 18, "500", brandColors.primary)}
-          </g>
-
-          {/* Contacts Row */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "contacts")}
-            transform={`translate(${offsets.contacts?.x || 0}, ${offsets.contacts?.y || 0}) scale(${offsets.contacts?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="275" y="255" width="345" height="120" rx="6" className="draggable-rect" />}
-            
-            {/* Phone */}
-            <a href={`tel:${cardData.phone}`} target="_blank">
-              <circle cx="295" cy="285" r="14" fill={brandColors.primary} />
-              <path d={RAW_ICONS.phone} fill="#ffffff" transform="translate(288, 278) scale(0.58)" />
-              <text x="315" y="280" fontSize="8" fontWeight="700" fill="#000000">PHONE</text>
-              {renderText(cardData.phone, "+91 98220 12345", 315, 295, 11, "600", "#000000")}
-            </a>
-
-            {/* Email */}
-            <a href={`mailto:${cardData.email}`} target="_blank">
-              <circle cx="295" cy="345" r="14" fill={brandColors.primary} />
-              <path d={RAW_ICONS.email} fill="#ffffff" transform="translate(288, 338) scale(0.58)" />
-              <path d={RAW_ICONS.emailLine} stroke="#ffffff" strokeWidth="2" fill="none" transform="translate(288, 338) scale(0.58)" />
-              <text x="315" y="340" fontSize="8" fontWeight="700" fill="#000000">EMAIL</text>
-              {renderText(cardData.email, "babu@sorigin.in", 315, 355, 11, "600", "#000000")}
-            </a>
-          </g>
-
-          {/* QR Code */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "qr")}
-            transform={`translate(${offsets.qr?.x || 0}, ${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="630" y="200" width="125" height="135" rx="6" className="draggable-rect" />}
-            <a href={getQRRedirectURL()} target="_blank">
-              <rect x="635" y="205" width="115" height="115" rx="8" stroke={brandColors.primary} strokeWidth="1.5" fill="#ffffff" />
-              <svg x="645" y="213" width="95" height="95">
-                <QRCode value={getQRRedirectURL()} size={95} level="H" includeMargin={false} />
-              </svg>
-              <rect x="635" y="308" width="115" height="20" rx="4" fill={brandColors.primary} />
-              <text x="692.5" y="321" textAnchor="middle" fontSize="8" fontWeight="700" fill="#ffffff">SCAN TO CONNECT</text>
-            </a>
-          </g>
-
-          <line x1="50" y1="398" x2="750" y2="398" stroke="#e5e7eb" strokeWidth="1.5" />
-
-          {/* Address & Social Bottom Bar */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "address")}
-            transform={`translate(${offsets.address?.x || 0}, ${offsets.address?.y || 0})`}
-          >
-            {editorMode && <rect x="45" y="398" width="710" height="45" rx="6" className="draggable-rect" />}
-            <path d={RAW_ICONS.mapPin} fill={brandColors.primary} transform="translate(52, 405) scale(0.7)" />
-            <circle cx="12" cy="10" r="3" fill="#ffffff" transform="translate(52, 405) scale(0.7)" />
-            <text x="75" y="418" fontSize="10" fontWeight="700" fill="#000000">{cardData.officeName || "Sorigin Group Pvt. Ltd."}</text>
-            {renderText(cardData.address, "7th Floor, Cybercity Commerzone, Mundhwa, Pune - 411089", 75, 430, 9, "500", "#6b7280")}
-
-            {/* Social links */}
-            <g transform="translate(0, 0)">
-              <a href={cardData.social.linkedin || "#"} target="_blank">
-                <circle cx="480" cy="413" r="10" fill="#0077b5" />
-                <path d={RAW_ICONS.linkedin} fill="#ffffff" transform="translate(475, 408) scale(0.42)" />
-                <text x="480" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">LinkedIn</text>
-              </a>
-              <a href={cardData.social.instagram || "#"} target="_blank">
-                <circle cx="535" cy="413" r="10" fill="#e1306c" />
-                <path d={RAW_ICONS.instagram} fill="#ffffff" transform="translate(530, 408) scale(0.42)" />
-                <text x="535" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">Instagram</text>
-              </a>
-              <a href={cardData.social.youtube || "#"} target="_blank">
-                <circle cx="590" cy="413" r="10" fill="#ff0000" />
-                <path d={RAW_ICONS.youtube} fill="#ffffff" transform="translate(585, 408) scale(0.42)" />
-                <text x="590" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">YouTube</text>
-              </a>
-              <a href={cardData.social.twitter || "#"} target="_blank">
-                <circle cx="645" cy="413" r="10" fill="#1da1f2" />
-                <path d={RAW_ICONS.twitter} fill="#ffffff" transform="translate(640, 408) scale(0.42)" />
-                <text x="645" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">Twitter</text>
-              </a>
-              <a href={cardData.social.facebook || "#"} target="_blank">
-                <circle cx="700" cy="413" r="10" fill="#1877f2" />
-                <path d={RAW_ICONS.facebook} fill="#ffffff" transform="translate(695, 408) scale(0.42)" />
-                <text x="700" y="432" textAnchor="middle" fontSize="7" fontWeight="500" fill="#000000">Facebook</text>
-              </a>
-            </g>
-          </g>
-        </svg>
-      );
-    }
-
-    // ----------------------------------------------------
-    // Layout 3 & 4: Vertical (With & Without Photo)
-    // ----------------------------------------------------
-    if (layoutType.startsWith("vertical")) {
-      const hasPhoto = layoutType === "vertical-with-photo";
-
-      return (
-        <svg
-          id="digital-card-svg"
-          ref={svgRef}
-          viewBox="0 0 600 900"
-          className="w-full h-full object-contain select-none"
-          xmlns="http://www.w3.org/2000/svg"
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          <defs>
-            {svgStyle}
-            <clipPath id="rect-photo-clip">
-              <rect x="380" y="120" width="180" height="220" rx="12" />
-            </clipPath>
-          </defs>
-
-          {/* Background */}
-          <rect width="600" height="900" fill="#ffffff" rx="16" />
-
-          {/* Logo Section */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "logo")}
-            transform={`translate(${offsets.logo?.x || 0}, ${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="440" y="25" width="125" height="48" rx="6" className="draggable-rect" />}
-            <rect x="445" y="30" width="115" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1" fill="none" />
-            {cardData.brandLogo ? (
-              <image href={cardData.brandLogo} x="447" y="32" width="111" height="34" preserveAspectRatio="xMidYMid meet" />
-            ) : (
-              <text x="502.5" y="53" textAnchor="middle" fontSize="12" fontWeight="500" fill={brandColors.primary}>Logo</text>
-            )}
-          </g>
-
-          {/* Profile Photo (Only rendered in vertical-with-photo) */}
-          {hasPhoto && (
-            <g
-              style={{ cursor: editorMode ? "move" : "default" }}
-              onMouseDown={(e) => handleMouseDown(e, "photo")}
-              transform={`translate(${offsets.photo?.x || 0}, ${offsets.photo?.y || 0}) scale(${offsets.photo?.scale || 1.0})`}
-            >
-              {editorMode && <rect x="375" y="115" width="190" height="230" rx="12" className="draggable-rect" />}
-              <rect x="380" y="120" width="180" height="220" rx="12" fill="#f3f4f6" stroke="#e5e7eb" strokeWidth="1.5" />
-              {cardData.headshot ? (
-                <image href={cardData.headshot} x="380" y="120" width="180" height="220" clipPath="url(#rect-photo-clip)" preserveAspectRatio="xMidYMid slice" />
-              ) : (
-                <g>
-                  <circle cx="470" cy="200" r="30" fill="#9ca3af" />
-                  <path d="M420,280 C420,240 440,230 470,230 C500,230 520,240 520,280 Z" fill="#9ca3af" clipPath="url(#rect-photo-clip)" />
-                  <text x="470" y="290" textAnchor="middle" fontSize="12" fontWeight="600" fill="#6b7280">UPLOAD PHOTO</text>
-                </g>
-              )}
-            </g>
-          )}
-
-          {/* Name Section (Position shifts to center / spans full width in no-photo layout) */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "name")}
-            transform={`translate(${offsets.name?.x || 0}, ${offsets.name?.y || 0})`}
-          >
-            {editorMode && <rect x="35" y={hasPhoto ? "130" : "150"} width={hasPhoto ? "330" : "530"} height="120" rx="6" className="draggable-rect" />}
-            {renderText(firstName, "Babu", 40, hasPhoto ? 175 : 195, offsets.name?.fontSize || 36, "700", "#000000", { className: "card-name" })}
-            {lastName && renderText(lastName, "Chakraborty", 40, hasPhoto ? 215 : 242, offsets.name?.fontSize || 36, "700", brandColors.primary, { className: "card-name" })}
-            <line x1="40" y1={hasPhoto ? 238 : 265} x2="85" y2={hasPhoto ? 238 : 265} stroke={brandColors.primary} strokeWidth="5" />
-          </g>
-
-          {/* Designation & Company */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "designation")}
-            transform={`translate(${offsets.designation?.x || 0}, ${offsets.designation?.y || 0})`}
-          >
-            {editorMode && <rect x="35" y={hasPhoto ? "255" : "285"} width="530" height="60" rx="6" className="draggable-rect" />}
-            {renderText(cardData.designation, "Head of Marketing", 40, hasPhoto ? 272 : 305, offsets.designation?.fontSize || 18, "700", "#000000")}
-            {renderText(cardData.officeName, "Sorigin Group", 40, hasPhoto ? 294 : 327, offsets.designation?.fontSize || 18, "500", brandColors.primary)}
-          </g>
-
-          {/* Contacts (2x2 Grid) */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "contacts")}
-            transform={`translate(${offsets.contacts?.x || 0}, ${offsets.contacts?.y || 0}) scale(${offsets.contacts?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="35" y="390" width="530" height="150" rx="6" className="draggable-rect" />}
-            
-            {/* Phone */}
-            <a href={`tel:${cardData.phone}`} target="_blank">
-              <circle cx="65" cy="420" r="18" fill={brandColors.primary} />
-              <path d={RAW_ICONS.phone} fill="#ffffff" transform="translate(56, 411) scale(0.75)" />
-              <text x="95" y="415" fontSize="11" fontWeight="700" fill="#000000">PHONE</text>
-              {renderText(cardData.phone, "+91 98220 12345", 95, 433, 13, "600", "#000000")}
-            </a>
-
-            {/* WhatsApp */}
-            <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank">
-              <circle cx="330" cy="420" r="18" fill={brandColors.primary} />
-              <path d={RAW_ICONS.whatsapp} fill="#ffffff" transform="translate(321, 411) scale(0.75)" />
-              <text x="360" y="415" fontSize="11" fontWeight="700" fill="#000000">WHATSAPP</text>
-              {renderText(cardData.phone, "+91 98220 12345", 360, 433, 13, "600", "#000000")}
-            </a>
-
-            {/* Email */}
-            <a href={`mailto:${cardData.email}`} target="_blank">
-              <circle cx="65" cy="500" r="18" fill={brandColors.primary} />
-              <path d={RAW_ICONS.email} fill="#ffffff" transform="translate(56, 491) scale(0.75)" />
-              <path d={RAW_ICONS.emailLine} stroke="#ffffff" strokeWidth="2" fill="none" transform="translate(56, 491) scale(0.75)" />
-              <text x="95" y="495" fontSize="11" fontWeight="700" fill="#000000">EMAIL</text>
-              {renderText(cardData.email, "babu.chakraborty@sorigin.in", 95, 513, 13, "600", "#000000")}
-            </a>
-
-            {/* Website */}
-            <a href={cardData.social.website || "https://www.sorigin.in"} target="_blank">
-              <circle cx="330" cy="500" r="18" fill={brandColors.primary} />
-              <path d={RAW_ICONS.globe} stroke="#ffffff" strokeWidth="2" fill="none" transform="translate(321, 491) scale(0.75)" />
-              <text x="360" y="495" fontSize="11" fontWeight="700" fill="#000000">WEBSITE</text>
-              {renderText(cardData.social.website || "", "www.sorigin.in", 360, 513, 13, "600", "#000000")}
-            </a>
-          </g>
-
-          <line x1="40" y1="560" x2="560" y2="560" stroke="#e5e7eb" strokeWidth="1.5" />
-
-          {/* Bottom Address */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "address")}
-            transform={`translate(${offsets.address?.x || 0}, ${offsets.address?.y || 0})`}
-          >
-            {editorMode && <rect x="35" y="570" width="330" height="220" rx="6" className="draggable-rect" />}
-            <path d={RAW_ICONS.mapPin} fill={brandColors.primary} transform="translate(40, 580) scale(0.85)" />
-            <circle cx="12" cy="10" r="3" fill="#ffffff" transform="translate(40, 580) scale(0.85)" />
-            <text x="65" y="594" fontSize="12" fontWeight="700" fill="#000000">ADDRESS</text>
-            <text x="65" y="618" fontSize="12" fontWeight="600" fill="#000000">{cardData.officeName || "Sorigin Group Pvt. Ltd."}</text>
-            <text x="65" y="636" fontSize="12" fontWeight="500" fill="#4b5563">
-              {(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune - 411089").split(",").map((p) => p.trim()).filter(Boolean).slice(0, 4).map((line, idx) => (
-                <tspan x="65" dy={idx === 0 ? 0 : 18} key={idx}>{line}</tspan>
-              ))}
-            </text>
-          </g>
-
-          {/* QR Code */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "qr")}
-            transform={`translate(${offsets.qr?.x || 0}, ${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1.0})`}
-          >
-            {editorMode && <rect x="375" y="580" width="190" height="240" rx="6" className="draggable-rect" />}
-            <a href={getQRRedirectURL()} target="_blank">
-              <rect x="380" y="590" width="180" height="180" rx="16" stroke={brandColors.primary} strokeWidth="1.5" fill="#ffffff" />
-              <svg x="405" y="612" width="130" height="130">
-                <QRCode value={getQRRedirectURL()} size={130} level="H" includeMargin={false} />
-              </svg>
-              <rect x="380" y="780" width="180" height="30" rx="15" fill={brandColors.primary} />
-              <text x="470" y="799" textAnchor="middle" fontSize="11" fontWeight="700" fill="#ffffff">SCAN TO CONNECT</text>
-            </a>
-          </g>
-
-          <line x1="40" y1="835" x2="560" y2="835" stroke="#e5e7eb" strokeWidth="1.5" />
-
-          {/* Social Row */}
-          <g
-            style={{ cursor: editorMode ? "move" : "default" }}
-            onMouseDown={(e) => handleMouseDown(e, "socials")}
-            transform={`translate(${offsets.socials?.x || 0}, ${offsets.socials?.y || 0})`}
-          >
-            {editorMode && <rect x="35" y="835" width="530" height="55" rx="6" className="draggable-rect" />}
-            
-            <a href={cardData.social.linkedin || "#"} target="_blank">
-              <circle cx="70" cy="855" r="12" fill="#0077b5" />
-              <path d={RAW_ICONS.linkedin} fill="#ffffff" transform="translate(63.5, 848.5) scale(0.54)" />
-              <text x="70" y="882" textAnchor="middle" fontSize="8" fontWeight="700" fill="#6b7280">LINKEDIN</text>
-            </a>
-
-            <line x1="125" y1="845" x2="125" y2="880" stroke="#d1d5db" strokeWidth="1.5" />
-
-            <a href={cardData.social.instagram || "#"} target="_blank">
-              <circle cx="180" cy="855" r="12" fill="#e1306c" />
-              <path d={RAW_ICONS.instagram} fill="#ffffff" transform="translate(173.5, 848.5) scale(0.54)" />
-              <text x="180" y="882" textAnchor="middle" fontSize="8" fontWeight="700" fill="#6b7280">INSTAGRAM</text>
-            </a>
-
-            <line x1="235" y1="845" x2="235" y2="880" stroke="#d1d5db" strokeWidth="1.5" />
-
-            <a href={cardData.social.youtube || "#"} target="_blank">
-              <circle cx="290" cy="855" r="12" fill="#ff0000" />
-              <path d={RAW_ICONS.youtube} fill="#ffffff" transform="translate(283.5, 848.5) scale(0.54)" />
-              <text x="290" y="882" textAnchor="middle" fontSize="8" fontWeight="700" fill="#6b7280">YOUTUBE</text>
-            </a>
-
-            <line x1="345" y1="845" x2="345" y2="880" stroke="#d1d5db" strokeWidth="1.5" />
-
-            <a href={cardData.social.twitter || "#"} target="_blank">
-              <circle cx="400" cy="855" r="12" fill="#1da1f2" />
-              <path d={RAW_ICONS.twitter} fill="#ffffff" transform="translate(393.5, 848.5) scale(0.54)" />
-              <text x="400" y="882" textAnchor="middle" fontSize="8" fontWeight="700" fill="#6b7280">TWITTER</text>
-            </a>
-
-            <line x1="455" y1="845" x2="455" y2="880" stroke="#d1d5db" strokeWidth="1.5" />
-
-            <a href={cardData.social.facebook || "#"} target="_blank">
-              <circle cx="510" cy="855" r="12" fill="#1877f2" />
-              <path d={RAW_ICONS.facebook} fill="#ffffff" transform="translate(503.5, 848.5) scale(0.54)" />
-              <text x="510" y="882" textAnchor="middle" fontSize="8" fontWeight="700" fill="#6b7280">FACEBOOK</text>
-            </a>
-          </g>
-        </svg>
-      );
+  const renderCard = () => {
+    switch (layoutType) {
+      case "horizontal-no-photo": return renderHorizontalNoPhoto();
+      case "horizontal-with-photo": return renderHorizontalWithPhoto();
+      case "vertical-no-photo":
+      case "vertical-with-photo": return renderVertical();
+      default: return renderHorizontalNoPhoto();
     }
   };
 
   return (
     <div className="w-full space-y-4">
       {/* Card Preview Area */}
-      <div className="flex flex-col items-center p-4 bg-gradient-to-br from-cyan-50 via-teal-50 to-green-50 rounded-2xl border border-teal-100 shadow-inner">
-        
+      <div className="flex flex-col items-center p-4 bg-gradient-to-br from-slate-50 via-gray-50 to-stone-50 rounded-2xl border border-gray-200 shadow-inner">
         {!isPublicView && (
-          <div className="flex gap-2 mb-4 justify-center w-full">
-            <Button
-              onClick={() => setEditorMode(!editorMode)}
-              variant={editorMode ? "default" : "outline"}
-              className={`gap-2 font-semibold shadow-sm ${editorMode ? "bg-cyan-600 hover:bg-cyan-700 text-white" : "bg-white"}`}
-            >
-              <Move size={16} />
-              {editorMode ? "Disable Drag Editor" : "Enable Drag Editor"}
+          <div className="flex gap-2 mb-3 justify-center w-full flex-wrap">
+            <Button onClick={() => setEditorMode(!editorMode)} variant={editorMode ? "default" : "outline"}
+              className={`gap-2 font-semibold shadow-sm text-xs h-8 ${editorMode ? "bg-cyan-600 hover:bg-cyan-700 text-white" : "bg-white"}`}>
+              <Move size={14} />
+              {editorMode ? "Exit Editor" : "Edit Layout"}
             </Button>
             {editorMode && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => updateOffsets({
-                  name: { x: 0, y: 0, fontSize: layoutType.startsWith("vertical") ? 36 : 48 },
-                  designation: { x: 0, y: 0, fontSize: 18 },
-                  logo: { x: 0, y: 0, scale: 1.0 },
-                  qr: { x: 0, y: 0, scale: 1.0 },
-                  contacts: { x: 0, y: 0, scale: 1.0 },
-                  address: { x: 0, y: 0, scale: 1.0 },
-                  socials: { x: 0, y: 0, scale: 1.0 },
-                  photo: { x: 0, y: 0, scale: 1.0 },
-                })}
-                className="text-gray-500 text-xs border bg-white"
-              >
+              <Button variant="ghost" size="sm" className="text-gray-500 text-xs border bg-white h-8"
+                onClick={() => updateOffsets(defaultOffsets)}>
                 Reset Layout
               </Button>
             )}
           </div>
         )}
 
-        <div
-          ref={cardRef}
-          className={`w-full max-w-2xl ${
-            layoutType.startsWith("vertical") ? "aspect-[3/4]" : "aspect-[16/9]"
-          } relative overflow-hidden rounded-2xl shadow-xl border border-gray-200 bg-white`}
-        >
-          {renderSvgCard()}
+        <div ref={cardRef} className={`w-full ${layoutType.startsWith("vertical") ? "max-w-xs" : "max-w-3xl"} ${layoutType.startsWith("vertical") ? "aspect-[4/7]" : "aspect-[7/4]"} relative rounded-xl shadow-lg border border-gray-200 bg-white overflow-hidden`}>
+          {renderCard()}
         </div>
       </div>
 
-      {/* Real-time Resizing Sliders (Visible during drag editor mode) */}
+      {/* Sizing Sliders */}
       {editorMode && !isPublicView && (
         <div className="w-full bg-white border border-teal-100 p-4 rounded-xl shadow-sm space-y-4">
           <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1">
-            <Settings size={14} className="text-teal-600 animate-spin-slow" />
+            <Settings size={14} className="text-teal-600" />
             ELEMENT SIZING CONTROLS
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Name Size Slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-bold text-gray-600">
-                <span>Name Font Size</span>
-                <span>{offsets.name?.fontSize || (layoutType.startsWith("vertical") ? 36 : 48)}px</span>
-              </div>
-              <input
-                type="range"
-                min="18"
-                max="64"
-                value={offsets.name?.fontSize || (layoutType.startsWith("vertical") ? 36 : 48)}
-                onChange={(e) => handleSliderChange("name", "fontSize", parseInt(e.target.value))}
-                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
-              />
-            </div>
-
-            {/* Designation Size Slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-bold text-gray-600">
-                <span>Title Font Size</span>
-                <span>{offsets.designation?.fontSize || 18}px</span>
-              </div>
-              <input
-                type="range"
-                min="10"
-                max="28"
-                value={offsets.designation?.fontSize || 18}
-                onChange={(e) => handleSliderChange("designation", "fontSize", parseInt(e.target.value))}
-                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
-              />
-            </div>
-
-            {/* Logo Scale Slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-bold text-gray-600">
-                <span>Logo Scale</span>
-                <span>{Math.round((offsets.logo?.scale || 1.0) * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="50"
-                max="180"
-                value={Math.round((offsets.logo?.scale || 1.0) * 100)}
-                onChange={(e) => handleSliderChange("logo", "scale", parseFloat((parseInt(e.target.value) / 100).toFixed(2)))}
-                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
-              />
-            </div>
-
-            {/* QR Code Scale Slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-bold text-gray-600">
-                <span>QR Scale</span>
-                <span>{Math.round((offsets.qr?.scale || 1.0) * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="50"
-                max="180"
-                value={Math.round((offsets.qr?.scale || 1.0) * 100)}
-                onChange={(e) => handleSliderChange("qr", "scale", parseFloat((parseInt(e.target.value) / 100).toFixed(2)))}
-                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
-              />
-            </div>
-
-            {/* Photo Scale Slider */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { key: "name", label: "Name Font", prop: "fontSize" as const, min: 18, max: 64, def: layoutType.startsWith("vertical") ? 32 : 44 },
+              { key: "designation", label: "Title Font", prop: "fontSize" as const, min: 10, max: 24, def: 15 },
+              { key: "logo", label: "Logo Scale", prop: "scale" as const, min: 50, max: 200, def: 100 },
+              { key: "qr", label: "QR Scale", prop: "scale" as const, min: 50, max: 180, def: 100 },
+            ].map(({ key, label, prop, min, max, def }) => {
+              const rawVal = prop === "scale" ? Math.round((offsets[key]?.scale || 1.0) * 100) : (offsets[key]?.fontSize || def);
+              const displayVal = prop === "scale" ? `${rawVal}%` : `${rawVal}px`;
+              return (
+                <div key={key} className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-gray-600">
+                    <span>{label}</span><span>{displayVal}</span>
+                  </div>
+                  <input type="range" min={min} max={max} value={rawVal}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      handleSliderChange(key, prop, prop === "scale" ? parseFloat((v / 100).toFixed(2)) : v);
+                    }}
+                    className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600" />
+                </div>
+              );
+            })}
             {layoutType !== "horizontal-no-photo" && layoutType !== "vertical-no-photo" && (
               <div className="space-y-1">
                 <div className="flex justify-between text-[11px] font-bold text-gray-600">
-                  <span>Photo Scale</span>
-                  <span>{Math.round((offsets.photo?.scale || 1.0) * 100)}%</span>
+                  <span>Photo Scale</span><span>{Math.round((offsets.photo?.scale || 1.0) * 100)}%</span>
                 </div>
-                <input
-                  type="range"
-                  min="50"
-                  max="180"
-                  value={Math.round((offsets.photo?.scale || 1.0) * 100)}
+                <input type="range" min={50} max={180} value={Math.round((offsets.photo?.scale || 1.0) * 100)}
                   onChange={(e) => handleSliderChange("photo", "scale", parseFloat((parseInt(e.target.value) / 100).toFixed(2)))}
-                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
-                />
+                  className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600" />
               </div>
             )}
           </div>
@@ -985,40 +872,26 @@ export default function CardPreview({
       )}
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-3 justify-center px-4">
-        <Button
-          onClick={downloadSVG}
-          disabled={isExporting}
-          className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2 px-6 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9"
-        >
-          <Download size={14} />
-          Download SVG
-        </Button>
-        <Button
-          onClick={downloadPNG}
-          disabled={isExporting}
-          className="bg-teal-700 hover:bg-teal-800 text-white gap-2 px-6 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9"
-        >
-          <Download size={14} />
-          {isExporting ? "Exporting..." : "Download PNG"}
-        </Button>
-        <Button
-          onClick={downloadPDF}
-          disabled={isExporting}
-          className="bg-cyan-700 hover:bg-cyan-800 text-white gap-2 px-6 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9"
-        >
-          <Download size={14} />
-          {isExporting ? "Exporting..." : "Download PDF"}
-        </Button>
-        <Button
-          onClick={shareWhatsApp}
-          disabled={isExporting}
-          className="bg-green-600 hover:bg-green-700 text-white gap-2 px-6 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9"
-        >
-          <MessageCircle size={14} />
-          Share WhatsApp
-        </Button>
-      </div>
+      {!isPublicView && (
+        <div className="flex flex-wrap gap-3 justify-center px-4">
+          <Button onClick={downloadSVG} disabled={isExporting}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2 px-5 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9">
+            <Download size={14} /> SVG
+          </Button>
+          <Button onClick={downloadPNG} disabled={isExporting}
+            className="bg-teal-700 hover:bg-teal-800 text-white gap-2 px-5 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9">
+            <Download size={14} /> {isExporting ? "Exporting…" : "PNG"}
+          </Button>
+          <Button onClick={downloadPDF} disabled={isExporting}
+            className="bg-cyan-700 hover:bg-cyan-800 text-white gap-2 px-5 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9">
+            <Download size={14} /> {isExporting ? "Exporting…" : "PDF"}
+          </Button>
+          <Button onClick={shareWhatsApp} disabled={isExporting}
+            className="bg-green-600 hover:bg-green-700 text-white gap-2 px-5 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9">
+            <MessageCircle size={14} /> WhatsApp
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

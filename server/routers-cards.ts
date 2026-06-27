@@ -144,12 +144,12 @@ export const aiGenerationRouter = router({
         name: z.string(),
         designation: z.string(),
         provider: z.enum(["groq", "openrouter", "cerebras"]).optional(),
+        apiKey: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // public procedures might not have ctx.user.id if not signed in, fallback to user 1
       const userId = ctx.user?.id || 1;
-      const bios = await generateBioSuggestions(userId, input.name, input.designation, input.provider);
+      const bios = await generateBioSuggestions(userId, input.name, input.designation, input.provider, input.apiKey);
       return { bios };
     }),
 
@@ -158,11 +158,12 @@ export const aiGenerationRouter = router({
       z.object({
         designation: z.string(),
         provider: z.enum(["groq", "openrouter", "cerebras"]).optional(),
+        apiKey: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user?.id || 1;
-      const taglines = await generateTaglineSuggestions(userId, input.designation, input.provider);
+      const taglines = await generateTaglineSuggestions(userId, input.designation, input.provider, input.apiKey);
       return { taglines };
     }),
 
@@ -177,11 +178,12 @@ export const aiGenerationRouter = router({
         officeName: z.string(),
         officeDetails: z.string(),
         provider: z.enum(["groq", "openrouter", "cerebras"]).optional(),
+        apiKey: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user?.id || 1;
-      const cleaned = await cleanCardDataWithAI(userId, input, input.provider);
+      const cleaned = await cleanCardDataWithAI(userId, input, input.provider, input.apiKey);
       return cleaned;
     }),
 

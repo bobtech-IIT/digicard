@@ -5,6 +5,7 @@ interface AIGenerationRequest {
   userId: number;
   prompt: string;
   provider?: "groq" | "openrouter" | "cerebras";
+  apiKey?: string;
 }
 
 interface AIGenerationResponse {
@@ -17,9 +18,23 @@ interface AIGenerationResponse {
  * Generate content using BYOK provider or fallback to built-in LLM
  */
 export async function generateAIContent(request: AIGenerationRequest): Promise<AIGenerationResponse> {
-  const { userId, prompt, provider } = request;
+  const { userId, prompt, provider, apiKey } = request;
 
-  // Try BYOK provider if specified
+  // Use client-passed apiKey first
+  if (provider && apiKey) {
+    try {
+      const content = await callExternalAIProvider(provider, apiKey, null, prompt);
+      return {
+        content,
+        provider,
+        success: true,
+      };
+    } catch (error) {
+      console.warn(`[AI] Direct apiKey call for ${provider} failed:`, error);
+    }
+  }
+
+  // Try BYOK provider database settings if no direct key is sent
   if (provider) {
     try {
       const aiProvider = await getActiveAIProvider(userId, provider);
@@ -123,7 +138,7 @@ async function callExternalAIProvider(
 function getModelForProvider(provider: string): string {
   const models: Record<string, string> = {
     groq: "mixtral-8x7b-32768",
-    openrouter: "meta-llama/llama-2-70b-chat",
+    openrouter: "openrouter/free",
     cerebras: "llama-3-70b",
   };
   return models[provider] || "gpt-3.5-turbo";
@@ -136,13 +151,14 @@ export async function generateBioSuggestions(
   userId: number,
   name: string,
   designation: string,
-  provider?: "groq" | "openrouter" | "cerebras"
+  provider?: "groq" | "openrouter" | "cerebras",
+  apiKey?: string
 ): Promise<string[]> {
   const prompt = `Generate 3 professional and catchy bio lines for a ${designation} named ${name}. 
 Each line should be 10-15 words, inspiring, and suitable for a digital visiting card. 
 Return only the 3 lines, one per line, without numbering or extra formatting.`;
 
-  const response = await generateAIContent({ userId, prompt, provider });
+  const response = await generateAIContent({ userId, prompt, provider, apiKey });
 
   if (!response.success) {
     return [
@@ -164,13 +180,14 @@ Return only the 3 lines, one per line, without numbering or extra formatting.`;
 export async function generateTaglineSuggestions(
   userId: number,
   designation: string,
-  provider?: "groq" | "openrouter" | "cerebras"
+  provider?: "groq" | "openrouter" | "cerebras",
+  apiKey?: string
 ): Promise<string[]> {
   const prompt = `Generate 3 catchy and professional taglines for a ${designation}. 
 Each tagline should be 5-8 words, memorable, and suitable for a digital visiting card. 
 Return only the 3 taglines, one per line, without numbering or extra formatting.`;
 
-  const response = await generateAIContent({ userId, prompt, provider });
+  const response = await generateAIContent({ userId, prompt, provider, apiKey });
 
   if (!response.success) {
     return [
@@ -230,7 +247,8 @@ export async function cleanCardDataWithAI(
     officeName: string;
     officeDetails: string;
   },
-  provider?: "groq" | "openrouter" | "cerebras"
+  provider?: "groq" | "openrouter" | "cerebras",
+  apiKey?: string
 ): Promise<any> {
   const prompt = `Format and clean up the following details for a professional visiting card:
 Name: ${cardFields.name}
@@ -247,7 +265,7 @@ Follow these strict cleanup rules:
 3. Clean spelling errors, formatting typos, and standardize addresses. If a field value is "missing value", replace it with "Data Missing".
 4. Return ONLY a valid JSON object matching the exact keys: name, designation, phone, email, address, officeName, officeDetails. Do not include markdown code block syntax (like \`\`\`json) or any extra conversational text.`;
 
-  const response = await generateAIContent({ userId, prompt, provider });
+  const response = await generateAIContent({ userId, prompt, provider, apiKey });
 
   if (!response.success) {
     return {

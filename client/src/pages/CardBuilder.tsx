@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +11,7 @@ import CardPreview from "@/components/CardPreview";
 import AISettings from "@/components/AISettings";
 import BrandAssets from "@/components/BrandAssets";
 import { useLocation } from "wouter";
-import { Sparkles, Settings, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, Check, ClipboardCheck, Loader2 } from "lucide-react";
+import { Sparkles, Settings, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, Check, ClipboardCheck, Loader2, Key, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import * as XLSX from "xlsx";
@@ -93,6 +93,20 @@ export default function CardBuilder() {
   const [isCleaning, setIsCleaning] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
+
+  // Client-side OpenRouter API Key (BYOK)
+  const [openRouterKey, setOpenRouterKey] = useState("");
+
+  useEffect(() => {
+    const savedKey = localStorage.getItem("glasscard_openrouter_key") || "";
+    setOpenRouterKey(savedKey);
+  }, []);
+
+  const handleSaveAPIKey = (key: string) => {
+    setOpenRouterKey(key);
+    localStorage.setItem("glasscard_openrouter_key", key);
+    toast.success("OpenRouter API key saved locally!");
+  };
 
   const bioMutation = trpc.aiGeneration.generateBios.useMutation();
   const taglineMutation = trpc.aiGeneration.generateTaglines.useMutation();
@@ -181,6 +195,10 @@ export default function CardBuilder() {
       toast.error("Please enter candidate name first");
       return;
     }
+    if (!openRouterKey) {
+      toast.error("Please configure your OpenRouter API key in the top settings box to use AI features.");
+      return;
+    }
     setIsCleaning(true);
     try {
       const cleaned = await cleanMutation.mutateAsync({
@@ -191,6 +209,8 @@ export default function CardBuilder() {
         address: cardData.address,
         officeName: cardData.officeName,
         officeDetails: cardData.officeDetails,
+        provider: "openrouter",
+        apiKey: openRouterKey,
       });
 
       setCardData((prev) => ({
@@ -217,14 +237,22 @@ export default function CardBuilder() {
       toast.error("Please enter name and designation first");
       return;
     }
+    if (!openRouterKey) {
+      toast.error("Please configure your OpenRouter API key in the top settings box to use AI features.");
+      return;
+    }
     try {
       const [bios, taglines] = await Promise.all([
         bioMutation.mutateAsync({
           name: cardData.name,
           designation: cardData.designation,
+          provider: "openrouter",
+          apiKey: openRouterKey,
         }),
         taglineMutation.mutateAsync({
           designation: cardData.designation,
+          provider: "openrouter",
+          apiKey: openRouterKey,
         }),
       ]);
       setBioSuggestions(bios.bios);
@@ -313,7 +341,6 @@ export default function CardBuilder() {
       };
       reader.readAsText(file);
     } else {
-      // Excel files
       reader.onload = (event) => {
         try {
           const binary = new Uint8Array(event.target?.result as ArrayBuffer);
@@ -344,7 +371,6 @@ export default function CardBuilder() {
     }
   };
 
-  // Map extra column value to focused field
   const handleMapColumnValue = (columnName: string) => {
     if (selectedRowIndex === null) {
       toast.error("Please select a candidate row first");
@@ -388,7 +414,6 @@ export default function CardBuilder() {
     }
   };
 
-  // Toggle candidate checkbox for Batch selection
   const handleToggleCandidate = (idx: number) => {
     setCheckedCandidateIndexes((prev) => {
       if (prev.includes(idx)) {
@@ -403,7 +428,46 @@ export default function CardBuilder() {
     });
   };
 
-  // Download ZIP of checked cards directly in selected layout
+  // Parse candidate row object into a formatted CardData configuration
+  const getRowCandidateData = (idx: number): CardData => {
+    const row = dashboardRows[idx];
+    const headers = Object.keys(row);
+    
+    const getColVal = (expectedList: string[]): string => {
+      const match = headers.find(h => expectedList.includes(h.toLowerCase()));
+      if (match) {
+        const val = String(row[match] || "").trim();
+        return val === "missing value" || val === "" ? "Data Missing" : val;
+      }
+      return "Data Missing";
+    };
+
+    return {
+      name: getColVal(EXPECTED_HEADERS.name),
+      designation: getColVal(EXPECTED_HEADERS.designation),
+      phone: getColVal(EXPECTED_HEADERS.phone),
+      email: getColVal(EXPECTED_HEADERS.email),
+      address: getColVal(EXPECTED_HEADERS.address),
+      officeName: getColVal(EXPECTED_HEADERS.officeName),
+      officeDetails: getColVal(EXPECTED_HEADERS.officeDetails),
+      social: {
+        linkedin: getColVal(EXPECTED_HEADERS.linkedin),
+        twitter: getColVal(EXPECTED_HEADERS.twitter),
+        instagram: getColVal(EXPECTED_HEADERS.instagram),
+        facebook: getColVal(EXPECTED_HEADERS.facebook),
+        youtube: getColVal(EXPECTED_HEADERS.youtube),
+        github: getColVal(EXPECTED_HEADERS.github),
+        tiktok: getColVal(EXPECTED_HEADERS.tiktok),
+        whatsapp: getColVal(EXPECTED_HEADERS.whatsapp),
+        website: getColVal(EXPECTED_HEADERS.website),
+      },
+      brandColors: cardData.brandColors,
+      brandLogo: cardData.brandLogo,
+      headshot: null
+    };
+  };
+
+  // Download ZIP of reviewed cards using their exact SVGs rendering on the DOM
   const handleBatchDownloadZIP = async () => {
     if (checkedCandidateIndexes.length === 0) {
       toast.error("Please select at least 1 candidate for batch generation");
@@ -418,96 +482,91 @@ export default function CardBuilder() {
         const idx = checkedCandidateIndexes[i];
         setZipProgress(Math.round((i / checkedCandidateIndexes.length) * 100));
 
-        const row = dashboardRows[idx];
-        const headers = Object.keys(row);
-        const getColVal = (expectedList: string[]): string => {
-          const match = headers.find(h => expectedList.includes(h.toLowerCase()));
-          if (match) {
-            const val = String(row[match] || "").trim();
-            return val === "missing value" || val === "" ? "Data Missing" : val;
-          }
-          return "Data Missing";
-        };
+        // Retrieve the rendered preview SVG directly from the DOM!
+        const cardContainer = document.getElementById(`batch-review-card-${idx}`);
+        const svgEl = cardContainer?.querySelector("svg") as unknown as SVGSVGElement;
 
-        const cData = {
-          name: getColVal(EXPECTED_HEADERS.name),
-          designation: getColVal(EXPECTED_HEADERS.designation),
-          phone: getColVal(EXPECTED_HEADERS.phone),
-          email: getColVal(EXPECTED_HEADERS.email),
-          address: getColVal(EXPECTED_HEADERS.address),
-          officeName: getColVal(EXPECTED_HEADERS.officeName),
-          officeDetails: getColVal(EXPECTED_HEADERS.officeDetails),
-          social: {
-            linkedin: getColVal(EXPECTED_HEADERS.linkedin),
-            twitter: getColVal(EXPECTED_HEADERS.twitter),
-            instagram: getColVal(EXPECTED_HEADERS.instagram),
-            facebook: getColVal(EXPECTED_HEADERS.facebook),
-            youtube: getColVal(EXPECTED_HEADERS.youtube),
-            github: getColVal(EXPECTED_HEADERS.github),
-            tiktok: getColVal(EXPECTED_HEADERS.tiktok),
-            whatsapp: getColVal(EXPECTED_HEADERS.whatsapp),
-            website: getColVal(EXPECTED_HEADERS.website),
-          },
-          brandColors: cardData.brandColors,
-          brandLogo: cardData.brandLogo,
-          headshot: null
-        };
+        if (!svgEl) {
+          console.warn(`SVG preview element not found for index ${idx}`);
+          continue;
+        }
 
-        // Render hidden SVG inside temporary container
-        const hiddenDiv = document.createElement("div");
-        hiddenDiv.style.position = "absolute";
-        hiddenDiv.style.left = "-9999px";
-        hiddenDiv.style.top = "-9999px";
-        document.body.appendChild(hiddenDiv);
+        const candidateName = getRowCandidateData(idx).name || `Candidate_${idx + 1}`;
+        const filename = candidateName.replace(/\s+/g, "_");
 
-        // Render elements manually via innerHTML to capture correctly
-        const firstName = cData.name.split(/\s+/)[0] || "";
-        const lastName = cData.name.split(/\s+/).slice(1).join(" ") || "";
-        
-        const isVert = layoutType.startsWith("vertical");
-        const w = isVert ? 600 : 800;
-        const h = isVert ? 900 : 450;
-
-        // Simplified SVG generation specifically for fast batch ZIP capture
-        const svgString = `
-          <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-            <rect width="${w}" height="${h}" fill="#ffffff" rx="16" />
-            <text x="50" y="100" font-size="36" font-weight="bold" fill="#000000">${firstName}</text>
-            <text x="50" y="150" font-size="36" font-weight="bold" fill="${cardData.brandColors?.primary || '#047857'}">${lastName}</text>
-            <text x="50" y="200" font-size="18" font-weight="bold" fill="#000000">${cData.designation}</text>
-            <text x="50" y="230" font-size="16" fill="#6b7280">${cData.officeName}</text>
-            <text x="50" y="270" font-size="12" fill="#4b5563">Phone: ${cData.phone}</text>
-            <text x="50" y="290" font-size="12" fill="#4b5563">Email: ${cData.email}</text>
-            <text x="50" y="310" font-size="12" fill="#4b5563">Website: ${cData.social.website}</text>
-          </svg>
-        `;
-        
-        hiddenDiv.innerHTML = svgString;
-        const svgEl = hiddenDiv.querySelector("svg") as unknown as SVGSVGElement;
-
-        const filename = cData.name.replace(/\s+/g, "_");
+        // 1. Export SVG
+        const svgString = new XMLSerializer().serializeToString(svgEl);
         zip.file(`${filename}.svg`, svgString);
 
-        const pngUrl = await convertSvgToPngDataUrl(svgEl, 2);
+        // 2. Export PNG (scale = 3 for high DPI)
+        const pngUrl = await convertSvgToPngDataUrl(svgEl, 3);
         const pngBase64 = pngUrl.split(",")[1];
         zip.file(`${filename}.png`, pngBase64, { base64: true });
 
+        // 3. Export PDF with native overlay links!
+        const viewBoxWidth = svgEl.viewBox?.baseVal?.width || 800;
+        const viewBoxHeight = svgEl.viewBox?.baseVal?.height || 457;
         const pdf = new jsPDF({
-          orientation: isVert ? "portrait" : "landscape",
+          orientation: layoutType.startsWith("vertical") ? "portrait" : "landscape",
           unit: "px",
-          format: [w, h],
+          format: [viewBoxWidth, viewBoxHeight],
         });
-        pdf.addImage(pngUrl, "PNG", 0, 0, w, h);
-        zip.file(`${filename}.pdf`, pdf.output("arraybuffer"));
+        pdf.addImage(pngUrl, "PNG", 0, 0, viewBoxWidth, viewBoxHeight);
 
-        document.body.removeChild(hiddenDiv);
+        // Embed clickable links overlays inside the PDF matching the preview offsets!
+        const cData = getRowCandidateData(idx);
+        const contactsX = offsets.contacts?.x || 0;
+        const contactsY = offsets.contacts?.y || 0;
+        const socialsX = offsets.socials?.x || 0;
+        const socialsY = offsets.socials?.y || 0;
+        const qrX = offsets.qr?.x || 0;
+        const qrY = offsets.qr?.y || 0;
+
+        const getQRRedirect = () => {
+          if (cData.social?.website && cData.social.website !== "Data Missing") {
+            let ws = cData.social.website.trim();
+            if (!/^https?:\/\//i.test(ws)) ws = `https://${ws}`;
+            return ws;
+          }
+          return "https://www.sorigin.in";
+        };
+
+        if (layoutType.startsWith("vertical")) {
+          pdf.link(40 + contactsX, 400 + contactsY, 200, 50, { url: `tel:${cData.phone}` });
+          pdf.link(300 + contactsX, 400 + contactsY, 200, 50, { url: `https://wa.me/${(cData.phone || "").replace(/[^0-9]/g, "")}` });
+          pdf.link(40 + contactsX, 480 + contactsY, 200, 50, { url: `mailto:${cData.email}` });
+          pdf.link(300 + contactsX, 480 + contactsY, 200, 50, { url: getQRRedirect() });
+          pdf.link(380 + qrX, 590 + qrY, 180, 180, { url: getQRRedirect() });
+          
+          pdf.link(45 + socialsX, 835 + socialsY, 50, 45, { url: cData.social.linkedin || "#" });
+          pdf.link(155 + socialsX, 835 + socialsY, 50, 45, { url: cData.social.instagram || "#" });
+          pdf.link(265 + socialsX, 835 + socialsY, 50, 45, { url: cData.social.youtube || "#" });
+          pdf.link(375 + socialsX, 835 + socialsY, 50, 45, { url: cData.social.twitter || "#" });
+          pdf.link(485 + socialsX, 835 + socialsY, 50, 45, { url: cData.social.facebook || "#" });
+        } else {
+          pdf.link(50 + contactsX, 260 + contactsY, 200, 45, { url: `tel:${cData.phone}` });
+          pdf.link(310 + contactsX, 260 + contactsY, 200, 45, { url: `https://wa.me/${(cData.phone || "").replace(/[^0-9]/g, "")}` });
+          pdf.link(50 + contactsX, 325 + contactsY, 200, 45, { url: `mailto:${cData.email}` });
+          pdf.link(310 + contactsX, 325 + contactsY, 200, 45, { url: getQRRedirect() });
+          pdf.link(635 + qrX, 205 + qrY, 115, 115, { url: getQRRedirect() });
+          
+          const addX = offsets.address?.x || 0;
+          const addY = offsets.address?.y || 0;
+          pdf.link(470 + addX, 400 + addY, 20, 20, { url: cData.social.linkedin || "#" });
+          pdf.link(525 + addX, 400 + addY, 20, 20, { url: cData.social.instagram || "#" });
+          pdf.link(580 + addX, 400 + addY, 20, 20, { url: cData.social.youtube || "#" });
+          pdf.link(635 + addX, 400 + addY, 20, 20, { url: cData.social.twitter || "#" });
+          pdf.link(690 + addX, 400 + addY, 20, 20, { url: cData.social.facebook || "#" });
+        }
+
+        zip.file(`${filename}.pdf`, pdf.output("arraybuffer"));
       }
 
       setZipProgress(100);
       const zipBlob = await zip.generateAsync({ type: "blob" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(zipBlob);
-      link.download = `glasscards_batch_dashboard.zip`;
+      link.download = `glasscards_reviewed_batch.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -591,22 +650,22 @@ export default function CardBuilder() {
             <h1 className="text-4xl font-bold text-gray-900 mb-2">GlassCard AI</h1>
             <p className="text-gray-600">Create beautiful, fully clickable digital visiting cards with AI-assisted layout scaling</p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => navigate("/batch-processor")}
-              variant="outline"
-              className="bg-white hover:bg-teal-50 border-teal-200 text-teal-800"
-            >
-              Batch Generator
-            </Button>
-            <Button
-              onClick={() => setAiSettingsOpen(true)}
-              variant="outline"
-              className="gap-2 bg-white hover:bg-gray-50"
-            >
-              <Settings size={18} />
-              AI Settings
-            </Button>
+          
+          {/* Universal OpenRouter API Key Input widget */}
+          <div className="flex items-center gap-2 bg-white/90 border border-teal-200 p-2 rounded-xl shadow-sm">
+            <Key size={16} className="text-teal-600 shrink-0" />
+            <Input
+              type="password"
+              placeholder="Enter OpenRouter API Key..."
+              value={openRouterKey}
+              onChange={(e) => handleSaveAPIKey(e.target.value)}
+              className="h-8 text-xs border-0 bg-transparent w-48 focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
+            {openRouterKey ? (
+              <span className="text-[10px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-lg border border-green-200">Active</span>
+            ) : (
+              <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">No Key</span>
+            )}
           </div>
         </div>
 
@@ -782,15 +841,15 @@ export default function CardBuilder() {
                     <Button
                       onClick={handleAICleanData}
                       disabled={isCleaning}
-                      className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5 h-9 text-xs"
+                      className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5 h-9 text-xs font-semibold"
                     >
                       {isCleaning ? <Loader2 size={12} className="animate-spin" /> : <Sparkle size={12} />}
-                      AI Clean Data
+                      AI Format
                     </Button>
                     <Button
                       onClick={handleGenerateSuggestions}
                       disabled={bioMutation.isPending || taglineMutation.isPending}
-                      className="flex-1 bg-teal-600 hover:bg-teal-700 text-white gap-1.5 h-9 text-xs"
+                      className="flex-1 bg-teal-600 hover:bg-teal-700 text-white gap-1.5 h-9 text-xs font-semibold"
                     >
                       <Sparkles size={12} />
                       AI Ideas
@@ -900,110 +959,147 @@ export default function CardBuilder() {
 
         {/* Dashboard table display of uploaded rows */}
         {dashboardRows.length > 0 && (
-          <Card className="p-6 shadow-md bg-white border border-gray-100 rounded-2xl overflow-x-auto space-y-4">
-            <div className="flex justify-between items-center flex-wrap gap-4 border-b pb-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-800">Candidate Records ({dashboardRows.length})</h2>
-                <p className="text-xs text-gray-500">Check boxes to batch generate (up to 10), or click the row actions to edit a card.</p>
+          <div className="space-y-6">
+            <Card className="p-6 shadow-md bg-white border border-gray-100 rounded-2xl overflow-x-auto space-y-4">
+              <div className="flex justify-between items-center flex-wrap gap-4 border-b pb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Candidate Records ({dashboardRows.length})</h2>
+                  <p className="text-xs text-gray-500">Check boxes to review cards in the section below, then download your Batch ZIP.</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleBatchDownloadZIP}
+                    disabled={isZipping || checkedCandidateIndexes.length === 0}
+                    className="bg-teal-700 hover:bg-teal-850 text-white gap-2 text-xs font-semibold px-4 h-9 shadow-sm"
+                  >
+                    {isZipping ? (
+                      <>
+                        <Loader2 className="animate-spin" size={14} />
+                        Zipping {zipProgress}%
+                      </>
+                    ) : (
+                      <>
+                        <Download size={14} />
+                        Download Batch ZIP ({checkedCandidateIndexes.length})
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleBatchDownloadZIP}
-                  disabled={isZipping || checkedCandidateIndexes.length === 0}
-                  className="bg-teal-700 hover:bg-teal-800 text-white gap-2 text-xs font-semibold px-4 h-9 shadow-sm"
-                >
-                  {isZipping ? (
-                    <>
-                      <Loader2 className="animate-spin" size={14} />
-                      Zipping {zipProgress}%
-                    </>
-                  ) : (
-                    <>
-                      <Download size={14} />
-                      Batch Generate ZIP ({checkedCandidateIndexes.length})
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
 
-            <Table>
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead className="w-[50px] text-center">Batch</TableHead>
-                  <TableHead>Candidate Name</TableHead>
-                  <TableHead>Current Designation</TableHead>
-                  <TableHead>Current Company</TableHead>
-                  <TableHead>Email ID</TableHead>
-                  <TableHead>Mobile No.</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dashboardRows.map((row, idx) => {
-                  const nameVal = row["Candidate Name"] || row["Name"] || "Record " + (idx + 1);
-                  const desVal = row["Current Designation"] || row["Designation"] || "Data Missing";
-                  const compVal = row["Current Company"] || row["Company"] || "Data Missing";
-                  const emailVal = row["Email ID"] || row["Email"] || "Data Missing";
-                  const phoneVal = row["Mobile No."] || row["Phone"] || "Data Missing";
+              <Table>
+                <TableHeader className="bg-gray-50">
+                  <TableRow>
+                    <TableHead className="w-[50px] text-center">Batch</TableHead>
+                    <TableHead>Candidate Name</TableHead>
+                    <TableHead>Current Designation</TableHead>
+                    <TableHead>Current Company</TableHead>
+                    <TableHead>Email ID</TableHead>
+                    <TableHead>Mobile No.</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dashboardRows.map((row, idx) => {
+                    const nameVal = row["Candidate Name"] || row["Name"] || "Record " + (idx + 1);
+                    const desVal = row["Current Designation"] || row["Designation"] || "Data Missing";
+                    const compVal = row["Current Company"] || row["Company"] || "Data Missing";
+                    const emailVal = row["Email ID"] || row["Email"] || "Data Missing";
+                    const phoneVal = row["Mobile No."] || row["Phone"] || "Data Missing";
 
-                  const isSelected = selectedRowIndex === idx;
+                    const isSelected = selectedRowIndex === idx;
 
-                  return (
-                    <TableRow
-                      key={idx}
-                      className={`hover:bg-teal-50/50 transition-colors cursor-pointer ${
-                        isSelected ? "bg-teal-50/70 border-l-4 border-l-teal-600" : ""
-                      }`}
-                      onClick={() => selectCandidateRow(row, idx)}
-                    >
-                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={checkedCandidateIndexes.includes(idx)}
-                          onChange={() => handleToggleCandidate(idx)}
-                          className="w-4 h-4 rounded text-teal-600 accent-teal-600 focus:ring-teal-500 cursor-pointer"
-                        />
-                      </TableCell>
-                      <TableCell className={`font-bold ${nameVal === "Data Missing" ? "text-red-500 italic" : "text-gray-900"}`}>
-                        {nameVal}
-                      </TableCell>
-                      <TableCell className={`font-semibold ${desVal === "Data Missing" ? "text-red-500 italic" : "text-gray-700"}`}>
-                        {desVal}
-                      </TableCell>
-                      <TableCell className={`text-sm ${compVal === "Data Missing" ? "text-red-500 italic" : "text-gray-600"}`}>
-                        {compVal}
-                      </TableCell>
-                      <TableCell className={`text-xs font-mono ${emailVal === "Data Missing" ? "text-red-500 italic" : "text-gray-500"}`}>
-                        {emailVal}
-                      </TableCell>
-                      <TableCell className={`text-xs font-mono ${phoneVal === "Data Missing" ? "text-red-500 italic" : "text-gray-500"}`}>
-                        {phoneVal}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant={isSelected ? "default" : "outline"}
-                          size="sm"
-                          className={`text-[10px] font-bold py-1 h-7 rounded-lg ${
-                            isSelected ? "bg-teal-600 text-white" : "border-teal-200 text-teal-700 bg-white"
-                          }`}
-                        >
-                          {isSelected ? (
-                            <>
-                              <ClipboardCheck size={12} className="mr-1" />
-                              Editing
-                            </>
-                          ) : (
-                            "Edit Card"
-                          )}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </Card>
+                    return (
+                      <TableRow
+                        key={idx}
+                        className={`hover:bg-teal-50/50 transition-colors cursor-pointer ${
+                          isSelected ? "bg-teal-50/70 border-l-4 border-l-teal-600" : ""
+                        }`}
+                        onClick={() => selectCandidateRow(row, idx)}
+                      >
+                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={checkedCandidateIndexes.includes(idx)}
+                            onChange={() => handleToggleCandidate(idx)}
+                            className="w-4 h-4 rounded text-teal-600 accent-teal-600 focus:ring-teal-500 cursor-pointer"
+                          />
+                        </TableCell>
+                        <TableCell className={`font-bold ${nameVal === "Data Missing" ? "text-red-500 italic" : "text-gray-900"}`}>
+                          {nameVal}
+                        </TableCell>
+                        <TableCell className={`font-semibold ${desVal === "Data Missing" ? "text-red-500 italic" : "text-gray-700"}`}>
+                          {desVal}
+                        </TableCell>
+                        <TableCell className={`text-sm ${compVal === "Data Missing" ? "text-red-500 italic" : "text-gray-650"}`}>
+                          {compVal}
+                        </TableCell>
+                        <TableCell className={`text-xs font-mono ${emailVal === "Data Missing" ? "text-red-500 italic" : "text-gray-500"}`}>
+                          {emailVal}
+                        </TableCell>
+                        <TableCell className={`text-xs font-mono ${phoneVal === "Data Missing" ? "text-red-500 italic" : "text-gray-500"}`}>
+                          {phoneVal}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant={isSelected ? "default" : "outline"}
+                            size="sm"
+                            className={`text-[10px] font-bold py-1 h-7 rounded-lg ${
+                              isSelected ? "bg-teal-600 text-white" : "border-teal-200 text-teal-700 bg-white"
+                            }`}
+                          >
+                            {isSelected ? (
+                              <>
+                                <ClipboardCheck size={12} className="mr-1" />
+                                Editing
+                              </>
+                            ) : (
+                              "Edit Card"
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Card>
+
+            {/* Batch Preview & Review Section Gallery (Loads up to 10 checked candidates in exact card layouts!) */}
+            {checkedCandidateIndexes.length > 0 && (
+              <Card className="p-6 bg-white border border-teal-100 rounded-2xl shadow-md space-y-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-1.5">
+                    <Eye className="text-teal-600" size={20} />
+                    Verify and Review Checked Batch Cards ({checkedCandidateIndexes.length}/10)
+                  </h3>
+                  <p className="text-xs text-gray-500">Preview exactly how each batch card will export. These nodes are used directly to package SVG, PNG, and PDF outputs.</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  {checkedCandidateIndexes.map((idx) => {
+                    const cData = getRowCandidateData(idx);
+                    return (
+                      <div key={idx} className="border border-gray-100 p-4 rounded-xl bg-gray-50/50 shadow-sm space-y-2">
+                        <div className="flex justify-between items-center border-b pb-2 mb-2">
+                          <span className="text-xs font-bold text-teal-800">Card #{idx + 1} - {cData.name}</span>
+                          <span className="text-[10px] bg-teal-100 text-teal-900 font-mono px-2 py-0.5 rounded-lg font-semibold">{layoutType}</span>
+                        </div>
+                        <div id={`batch-review-card-${idx}`} className="w-full">
+                          <CardPreview
+                            cardData={cData}
+                            layoutType={layoutType}
+                            savedOffsets={offsets} // sharing offsets & sizes across all preview nodes!
+                            isPublicView={true}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+          </div>
         )}
       </div>
 
