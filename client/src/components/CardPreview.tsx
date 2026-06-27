@@ -48,7 +48,8 @@ const ICONS = {
   whatsapp: "M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.705 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z",
   email: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z",
   emailChevron: "M22 6l-10 7L2 6",
-  globe: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18c-3.35 0-6.28-1.77-7.96-4.43C5.9 14.47 8.76 14 12 14s6.1.47 7.96 1.57C18.28 18.23 15.35 20 12 20zm0-8c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm7.5 4.2c-1.71-1.33-4.44-2.2-7.5-2.2s-5.79.87-7.5 2.2C4.35 15.55 4 14.31 4 13c0-4.42 3.58-8 8-8s8 3.58 8 8c0 1.31-.35 2.55-.5 3.2z",
+  // Correct geographic globe with latitude/longitude ellipses (NOT a clock)
+  globe: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.86-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z",
   mapPin: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
   linkedin: "M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z M4 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
   instagram: "M17 2H7a5 5 0 0 0-5 5v10a5 5 0 0 0 5 5h10a5 5 0 0 0 5-5V7a5 5 0 0 0-5-5zm-5 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm5.25-9.75a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z",
@@ -388,7 +389,6 @@ export default function CardPreview({
       onMouseDown={(e) => handleResizeStart(e, item)} />
   );
 
-  // ── Shared SVG styles string ─────────────────────────────────────────────────
   const svgDefs = (
     <defs>
       <style>{`
@@ -397,6 +397,15 @@ export default function CardPreview({
         .fc-body { font-family: 'Plus Jakarta Sans', sans-serif; }
         .drag-outline { stroke: #06b6d4; stroke-width: 1.5; stroke-dasharray: 4; fill: #06b6d4; fill-opacity: 0.04; }
       `}</style>
+      <linearGradient id="dividerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="transparent" />
+        <stop offset="25%" stopColor={brandColors.primary} stopOpacity="0.2" />
+        <stop offset="75%" stopColor={brandColors.primary} stopOpacity="0.2" />
+        <stop offset="100%" stopColor="transparent" />
+      </linearGradient>
+      <filter id="photoShadow" x="-15%" y="-15%" width="130%" height="130%">
+        <feDropShadow dx="0" dy="4" stdDeviation="8" floodColor={brandColors.primary} floodOpacity="0.2" />
+      </filter>
     </defs>
   );
 
@@ -430,13 +439,15 @@ export default function CardPreview({
       onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
       {svgDefs}
       <rect width="800" height="457" fill="#ffffff" rx="12" />
+      {/* ── Brand accent strip (top) ── */}
+      <rect x="0" y="0" width="800" height="5" fill={brandColors.primary} rx="2" />
 
-      {/* ── Logo (top-right) ── */}
+      {/* ── Logo (top-right) — premium pill shape ── */}
       <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
-        <rect x="640" y="18" width="120" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1.5" fill="none" />
+        <rect x="640" y="18" width="120" height="38" rx="19" stroke={brandColors.primary} strokeWidth="1.5" fill="#f0fdf4" />
         {cardData.brandLogo
-          ? <image href={cardData.brandLogo} x="642" y="20" width="116" height="34" preserveAspectRatio="xMidYMid meet" />
-          : <text x="700" y="41" textAnchor="middle" fontSize="12" fontWeight="600" fill={brandColors.primary} className="fc-body">Logo</text>}
+          ? <image href={cardData.brandLogo} x="646" y="22" width="108" height="30" preserveAspectRatio="xMidYMid meet" />
+          : <text x="700" y="41" textAnchor="middle" fontSize="12" fontWeight="700" fill={brandColors.primary} className="fc-body" letterSpacing="0.5">LOGO</text>}
         {editorMode && <><rect x="636" y="13" width="128" height="48" rx="6" className="drag-outline" />{resizeHandle("logo", 764, 61)}</>}
       </g>
 
@@ -556,10 +567,14 @@ export default function CardPreview({
         <clipPath id="photo-clip-h"><circle cx="155" cy="185" r="130" /></clipPath>
       </defs>
       <rect width="800" height="457" fill="#ffffff" rx="12" />
+      {/* ── Brand accent strip (top) ── */}
+      <rect x="0" y="0" width="800" height="5" fill={brandColors.primary} rx="2" />
 
       {/* ── Photo (left circular) ── */}
       <g {...dragHandle("photo")} transform={`translate(${offsets.photo?.x || 0},${offsets.photo?.y || 0}) scale(${offsets.photo?.scale || 1})`}>
-        <circle cx="155" cy="185" r="130" fill="#f3f4f6" stroke="#e5e7eb" strokeWidth="2" />
+        {/* Photo shadow */}
+        <circle cx="155" cy="185" r="130" fill={brandColors.primary} opacity="0.08" filter="url(#photoShadow)" />
+        <circle cx="155" cy="185" r="130" fill="#f3f4f6" />
         {cardData.headshot
           ? <image href={cardData.headshot} x="25" y="55" width="260" height="260" clipPath="url(#photo-clip-h)" preserveAspectRatio="xMidYMid slice" />
           : <>
@@ -567,15 +582,17 @@ export default function CardPreview({
             <path d="M65,280 C65,235 100,218 155,218 C210,218 245,235 245,280 Z" fill="#9ca3af" clipPath="url(#photo-clip-h)" />
             <text x="155" y="310" textAnchor="middle" fontSize="11" fontWeight="600" fill="#6b7280" className="fc-body">UPLOAD PHOTO</text>
           </>}
-        {editorMode && <><circle cx="155" cy="185" r="133" className="drag-outline" />{resizeHandle("photo", 280, 310)}</>}
+        {/* Brand ring around photo */}
+        <circle cx="155" cy="185" r="133" fill="none" stroke={brandColors.primary} strokeWidth="3" opacity="0.35" />
+        {editorMode && <><circle cx="155" cy="185" r="136" className="drag-outline" />{resizeHandle("photo", 280, 310)}</>}
       </g>
 
       {/* ── Logo (top-right) ── */}
       <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
-        <rect x="640" y="18" width="120" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1.5" fill="none" />
+        <rect x="640" y="18" width="120" height="38" rx="19" stroke={brandColors.primary} strokeWidth="1.5" fill="#f0fdf4" />
         {cardData.brandLogo
-          ? <image href={cardData.brandLogo} x="642" y="20" width="116" height="34" preserveAspectRatio="xMidYMid meet" />
-          : <text x="700" y="41" textAnchor="middle" fontSize="12" fontWeight="600" fill={brandColors.primary} className="fc-body">Logo</text>}
+          ? <image href={cardData.brandLogo} x="646" y="22" width="108" height="30" preserveAspectRatio="xMidYMid meet" />
+          : <text x="700" y="41" textAnchor="middle" fontSize="12" fontWeight="700" fill={brandColors.primary} className="fc-body" letterSpacing="0.5">LOGO</text>}
         {editorMode && <><rect x="636" y="13" width="128" height="48" rx="6" className="drag-outline" />{resizeHandle("logo", 764, 61)}</>}
       </g>
 
@@ -628,23 +645,25 @@ export default function CardPreview({
       </g>
 
       {/* Vertical divider */}
-      <line x1="622" y1="178" x2="622" y2="345" stroke="#e5e7eb" strokeWidth="1" />
+      <line x1="622" y1="178" x2="622" y2="345" stroke="url(#dividerGrad)" strokeWidth="1.5" />
 
       {/* ── QR ── */}
       <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
         <a href={getQRValue()} target="_blank" rel="noopener noreferrer">
           <rect x="638" y="178" width="118" height="118" rx="10" stroke={brandColors.primary} strokeWidth="1.5" fill="#fff" />
+          {/* Premium double border */}
+          <rect x="641" y="181" width="112" height="112" rx="8" stroke={brandColors.primary} strokeWidth="0.5" fill="none" opacity="0.3" />
           <svg x="646" y="186" width="102" height="102">
             <QRCodeSVG value={getQRValue()} size={102} level="H" includeMargin={false} />
           </svg>
-          <rect x="638" y="302" width="118" height="22" rx="11" fill={brandColors.primary} />
-          <text x="697" y="317" textAnchor="middle" fontSize="8" fontWeight="700" fill="#fff" className="fc-body">SCAN TO CONNECT</text>
+          <rect x="638" y="302" width="118" height="28" rx="14" fill={brandColors.primary} />
+          <text x="697" y="320" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" className="fc-body" letterSpacing="0.5">SCAN TO CONNECT</text>
         </a>
-        {editorMode && <><rect x="633" y="173" width="128" height="157" rx="6" className="drag-outline" />{resizeHandle("qr", 761, 330)}</>}
+        {editorMode && <><rect x="633" y="173" width="128" height="163" rx="6" className="drag-outline" />{resizeHandle("qr", 761, 336)}</>}
       </g>
 
       {/* ── Bottom bar: Address + Socials ── */}
-      <line x1="50" y1="350" x2="750" y2="350" stroke="#e5e7eb" strokeWidth="1" />
+      <line x1="50" y1="350" x2="750" y2="350" stroke="url(#dividerGrad)" strokeWidth="1.5" />
       <g {...dragHandle("address")} transform={`translate(${offsets.address?.x || 0},${offsets.address?.y || 0})`}>
         {editorMode && <rect x="44" y="350" width="710" height="90" rx="6" className="drag-outline" />}
         <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(53,359) scale(0.75)" />
@@ -679,20 +698,24 @@ export default function CardPreview({
           <clipPath id="photo-clip-v"><circle cx="385" cy="195" r="90" /></clipPath>
         </defs>
         <rect width="514" height="760" fill="#ffffff" rx="12" />
+        {/* ── Brand accent strip (top) ── */}
+        <rect x="0" y="0" width="514" height="5" fill={brandColors.primary} rx="2" />
 
-        {/* ── Logo ── */}
+        {/* ── Logo — premium pill, anchored within card boundary at top-right ── */}
         <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
-          <rect x="355" y="22" width="120" height="38" rx="4" stroke={brandColors.primary} strokeWidth="1.5" fill="none" />
+          <rect x="354" y="10" width="122" height="36" rx="18" stroke={brandColors.primary} strokeWidth="1.5" fill="#f0fdf4" />
           {cardData.brandLogo
-            ? <image href={cardData.brandLogo} x="357" y="24" width="116" height="34" preserveAspectRatio="xMidYMid meet" />
-            : <text x="415" y="45" textAnchor="middle" fontSize="12" fontWeight="600" fill={brandColors.primary} className="fc-body">Logo</text>}
-          {editorMode && <><rect x="350" y="17" width="130" height="48" rx="6" className="drag-outline" />{resizeHandle("logo", 480, 65)}</>}
+            ? <image href={cardData.brandLogo} x="360" y="14" width="110" height="28" preserveAspectRatio="xMidYMid meet" />
+            : <text x="415" y="33" textAnchor="middle" fontSize="12" fontWeight="700" fill={brandColors.primary} className="fc-body" letterSpacing="0.5">LOGO</text>}
+          {editorMode && <><rect x="350" y="6" width="130" height="44" rx="6" className="drag-outline" />{resizeHandle("logo", 480, 50)}</>}
         </g>
 
         {/* ── Profile Photo (right column, if enabled) ── */}
         {hasPhoto && (
           <g {...dragHandle("photo")} transform={`translate(${offsets.photo?.x || 0},${offsets.photo?.y || 0}) scale(${offsets.photo?.scale || 1})`}>
-            <circle cx="385" cy="195" r="90" fill="#f3f4f6" stroke="#e5e7eb" strokeWidth="2" />
+            {/* Shadow glow */}
+            <circle cx="385" cy="195" r="90" fill={brandColors.primary} opacity="0.07" filter="url(#photoShadow)" />
+            <circle cx="385" cy="195" r="90" fill="#f3f4f6" />
             {cardData.headshot
               ? <image href={cardData.headshot} x="295" y="105" width="180" height="180" clipPath="url(#photo-clip-v)" preserveAspectRatio="xMidYMid slice" />
               : <>
@@ -700,7 +723,9 @@ export default function CardPreview({
                 <path d="M330,255 C330,230 355,220 385,220 C415,220 440,230 440,255 Z" fill="#9ca3af" clipPath="url(#photo-clip-v)" />
                 <text x="385" y="272" textAnchor="middle" fontSize="10" fontWeight="600" fill="#6b7280" className="fc-body">UPLOAD PHOTO</text>
               </>}
-            {editorMode && <><circle cx="385" cy="195" r="93" className="drag-outline" />{resizeHandle("photo", 470, 280)}</>}
+            {/* Brand ring */}
+            <circle cx="385" cy="195" r="93" fill="none" stroke={brandColors.primary} strokeWidth="3" opacity="0.35" />
+            {editorMode && <><circle cx="385" cy="195" r="96" className="drag-outline" />{resizeHandle("photo", 470, 280)}</>}
           </g>
         )}
 
@@ -721,8 +746,8 @@ export default function CardPreview({
           {editorMode && <rect x="32" y={hasPhoto ? 210 : 240} width="440" height="44" rx="6" className="drag-outline" />}
         </g>
 
-        {/* Separator */}
-        <line x1="38" y1={hasPhoto ? 270 : 295} x2="476" y2={hasPhoto ? 270 : 295} stroke="#e5e7eb" strokeWidth="1" />
+        {/* Separator — gradient */}
+        <line x1="38" y1={hasPhoto ? 270 : 295} x2="476" y2={hasPhoto ? 270 : 295} stroke="url(#dividerGrad)" strokeWidth="1.5" />
 
         {/* ── Contacts (2×2 grid) — Phone/WhatsApp top row, Email/Website bottom row ── */}
         <g {...dragHandle("contacts")} transform={`translate(${offsets.contacts?.x || 0},${offsets.contacts?.y || 0})`}>
@@ -731,14 +756,14 @@ export default function CardPreview({
           <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
             <circle cx="60" cy={hasPhoto ? 305 : 330} r="15" fill={brandColors.primary} />
             <path d={ICONS.phone} fill="#fff" transform={`translate(52.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
-            <text x="84" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">PHONE</text>
+            <text x="84" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">PHONE</text>
             <text x="84" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
           </a>
           {/* WhatsApp — top right */}
           <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">
             <circle cx="270" cy={hasPhoto ? 305 : 330} r="15" fill={brandColors.primary} />
             <path d={ICONS.whatsapp} fill="#fff" transform={`translate(262.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
-            <text x="294" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">WHATSAPP</text>
+            <text x="294" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">WHATSAPP</text>
             <text x="294" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
           </a>
           {/* Email — bottom left */}
@@ -746,20 +771,20 @@ export default function CardPreview({
             <circle cx="60" cy={hasPhoto ? 358 : 383} r="15" fill={brandColors.primary} />
             <path d={ICONS.email} fill="#fff" transform={`translate(52.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
             <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform={`translate(52.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
-            <text x="84" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">EMAIL</text>
+            <text x="84" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">EMAIL</text>
             <text x="84" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.email, 26) || "Data Missing"}</text>
           </a>
           {/* Website — bottom right */}
           <a href={getWebsite() || "#"} target="_blank" rel="noopener noreferrer">
             <circle cx="270" cy={hasPhoto ? 358 : 383} r="15" fill={brandColors.primary} />
             <path d={ICONS.globe} fill="#fff" transform={`translate(262.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
-            <text x="294" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">WEBSITE</text>
+            <text x="294" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">WEBSITE</text>
             <text x="294" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.social?.website || "", 26) || "Data Missing"}</text>
           </a>
         </g>
 
-        {/* Separator */}
-        <line x1="38" y1={hasPhoto ? 408 : 433} x2="476" y2={hasPhoto ? 408 : 433} stroke="#e5e7eb" strokeWidth="1" />
+        {/* Separator — gradient */}
+        <line x1="38" y1={hasPhoto ? 408 : 433} x2="476" y2={hasPhoto ? 408 : 433} stroke="url(#dividerGrad)" strokeWidth="1.5" />
 
         {/* ── Address (bottom-left) ── */}
         <g {...dragHandle("address")} transform={`translate(${offsets.address?.x || 0},${offsets.address?.y || 0})`}>
@@ -771,21 +796,23 @@ export default function CardPreview({
             { fontSize: 9.5, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
         </g>
 
-        {/* ── QR Code (bottom-right) ── */}
+        {/* ── QR Code (bottom-right) — vertically aligned with ADDRESS top edge ── */}
         <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
           <a href={getQRValue()} target="_blank" rel="noopener noreferrer">
             <rect x="295" y={hasPhoto ? 414 : 439} width="178" height="178" rx="12" stroke={brandColors.primary} strokeWidth="1.5" fill="#fff" />
+            {/* Premium double border */}
+            <rect x="298" y={hasPhoto ? 417 : 442} width="172" height="172" rx="10" stroke={brandColors.primary} strokeWidth="0.5" fill="none" opacity="0.3" />
             <svg x="305" y={hasPhoto ? 424 : 449} width="158" height="158">
               <QRCodeSVG value={getQRValue()} size={158} level="H" includeMargin={false} />
             </svg>
-            <rect x="295" y={hasPhoto ? 598 : 623} width="178" height="24" rx="12" fill={brandColors.primary} />
-            <text x="384" y={hasPhoto ? 614 : 639} textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" className="fc-body">SCAN TO CONNECT</text>
+            <rect x="295" y={hasPhoto ? 598 : 623} width="178" height="30" rx="15" fill={brandColors.primary} />
+            <text x="384" y={hasPhoto ? 617 : 642} textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" className="fc-body" letterSpacing="0.5">SCAN TO CONNECT</text>
           </a>
-          {editorMode && <><rect x="290" y={hasPhoto ? 409 : 434} width="188" height="222" rx="6" className="drag-outline" />{resizeHandle("qr", 478, hasPhoto ? 631 : 656)}</>}
+          {editorMode && <><rect x="290" y={hasPhoto ? 409 : 434} width="188" height="228" rx="6" className="drag-outline" />{resizeHandle("qr", 478, hasPhoto ? 637 : 662)}</>}
         </g>
 
         {/* ── Socials Bar (bottom) ── */}
-        <line x1="38" y1={hasPhoto ? 660 : 685} x2="476" y2={hasPhoto ? 660 : 685} stroke="#e5e7eb" strokeWidth="1" />
+        <line x1="38" y1={hasPhoto ? 660 : 685} x2="476" y2={hasPhoto ? 660 : 685} stroke="url(#dividerGrad)" strokeWidth="1.5" />
         <g {...dragHandle("socials")} transform={`translate(${offsets.socials?.x || 0},${offsets.socials?.y || 0})`}>
           {editorMode && <rect x="32" y={hasPhoto ? 664 : 689} width="450" height="55" rx="6" className="drag-outline" />}
           <SocialIcon cx={70} cy={hasPhoto ? 700 : 725} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LINKEDIN" />
