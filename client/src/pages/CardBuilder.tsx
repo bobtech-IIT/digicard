@@ -113,6 +113,31 @@ export default function CardBuilder() {
   const cleanMutation = trpc.aiGeneration.cleanCardData.useMutation();
   const saveMutation = trpc.card.create.useMutation();
 
+  // ── Direct browser→OpenRouter AI call (bypasses server, no serverless issues) ───────────
+  const callOpenRouterDirect = async (prompt: string): Promise<string> => {
+    if (!openRouterKey) throw new Error("No API key");
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openRouterKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": window.location.origin,
+        "X-Title": "GlassCard AI"
+      },
+      body: JSON.stringify({
+        model: "openrouter/free",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 700
+      })
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`OpenRouter ${res.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || "";
+  };
+
   const [cardData, setCardData] = useState<CardData>({
     headshot: null,
     name: "",
@@ -189,77 +214,70 @@ export default function CardBuilder() {
     }));
   };
 
-  // AI-powered data formatting/cleaning
+  // AI-powered data formatting/cleaning (direct browser→OpenRouter)
   const handleAICleanData = async () => {
-    if (!cardData.name) {
-      toast.error("Please enter candidate name first");
-      return;
-    }
-    if (!openRouterKey) {
-      toast.error("Please configure your OpenRouter API key in the top settings box to use AI features.");
-      return;
-    }
+    if (!cardData.name) { toast.error("Please enter candidate name first"); return; }
+    if (!openRouterKey) { toast.error("Enter your OpenRouter API key at the top to enable AI features."); return; }
     setIsCleaning(true);
     try {
-      const cleaned = await cleanMutation.mutateAsync({
-        name: cardData.name,
-        designation: cardData.designation,
-        phone: cardData.phone,
-        email: cardData.email,
-        address: cardData.address,
-        officeName: cardData.officeName,
-        officeDetails: cardData.officeDetails,
-        provider: "openrouter",
-        apiKey: openRouterKey,
-      });
+      const prompt = `You are a professional business card formatter. Clean and properly capitalize the following data. Return ONLY valid JSON, no explanation.
 
+Input:
+- Name: ${cardData.name}
+- Designation: ${cardData.designation}
+- Phone: ${cardData.phone}
+- Email: ${cardData.email}
+- Office Address: ${cardData.address}
+- Office/Company Name: ${cardData.officeName}
+
+Return JSON like: {"name":"...","designation":"...","phone":"...","email":"...","address":"...","officeName":"..."}`;
+
+      const raw = await callOpenRouterDirect(prompt);
+      // Extract JSON from response (may be wrapped in markdown code block)
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON in response");
+      const cleaned = JSON.parse(jsonMatch[0]);
       setCardData((prev) => ({
         ...prev,
-        name: cleaned.name,
-        designation: cleaned.designation,
-        phone: cleaned.phone,
-        email: cleaned.email,
-        address: cleaned.address,
-        officeName: cleaned.officeName,
-        officeDetails: cleaned.officeDetails,
+        name: cleaned.name || prev.name,
+        designation: cleaned.designation || prev.designation,
+        phone: cleaned.phone || prev.phone,
+        email: cleaned.email || prev.email,
+        address: cleaned.address || prev.address,
+        officeName: cleaned.officeName || prev.officeName,
       }));
-      toast.success("Card data formatted by AI successfully!");
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to run AI data formatting");
+      toast.success("AI formatted your card data successfully!");
+    } catch (err: any) {
+      console.error("AI Format error:", err);
+      toast.error(`AI Format failed: ${err?.message?.slice(0, 80) || "Unknown error"}`);
     } finally {
       setIsCleaning(false);
     }
   };
 
   const handleGenerateSuggestions = async () => {
-    if (!cardData.name || !cardData.designation) {
-      toast.error("Please enter name and designation first");
-      return;
-    }
-    if (!openRouterKey) {
-      toast.error("Please configure your OpenRouter API key in the top settings box to use AI features.");
-      return;
-    }
+    if (!cardData.name || !cardData.designation) { toast.error("Please enter name and designation first"); return; }
+    if (!openRouterKey) { toast.error("Enter your OpenRouter API key at the top to enable AI features."); return; }
     try {
-      const [bios, taglines] = await Promise.all([
-        bioMutation.mutateAsync({
-          name: cardData.name,
-          designation: cardData.designation,
-          provider: "openrouter",
-          apiKey: openRouterKey,
-        }),
-        taglineMutation.mutateAsync({
-          designation: cardData.designation,
-          provider: "openrouter",
-          apiKey: openRouterKey,
-        }),
+      const bioPrompt = `Generate 3 short professional bio taglines for a business card. Person: ${cardData.name}, Role: ${cardData.designation}, Company: ${cardData.officeName}. Return ONLY a JSON array of 3 strings, e.g. ["tagline1","tagline2","tagline3"]`;
+      const taglinePrompt = `Generate 3 creative company taglines for a visiting card for role: ${cardData.designation} at ${cardData.officeName || "a company"}. Return ONLY a JSON array of 3 strings.`;
+      const [biosRaw, taglinesRaw] = await Promise.all([
+        callOpenRouterDirect(bioPrompt),
+        callOpenRouterDirect(taglinePrompt)
       ]);
-      setBioSuggestions(bios.bios);
-      setTaglineSuggestions(taglines.taglines);
+      const parseSuggestions = (raw: string): string[] => {
+        try {
+          const match = raw.match(/\[[\s\S]*?\]/);
+          return match ? JSON.parse(match[0]) : [];
+        } catch { return []; }
+      };
+      setBioSuggestions(parseSuggestions(biosRaw));
+      setTaglineSuggestions(parseSuggestions(taglinesRaw));
       setShowSuggestions(true);
-    } catch (error) {
-      toast.error("Failed to generate suggestions");
+      toast.success("AI suggestions generated!");
+    } catch (error: any) {
+      console.error("AI Ideas error:", error);
+      toast.error(`AI Ideas failed: ${error?.message?.slice(0, 80) || "Unknown error"}`);
     }
   };
 
@@ -824,17 +842,6 @@ export default function CardBuilder() {
                     />
                   </div>
 
-                  {/* Office Details / Tagline */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700">Office Details / Tagline</label>
-                    <Textarea
-                      placeholder="Office details or company slogan"
-                      value={cardData.officeDetails}
-                      onFocus={() => setLastFocusedField("officeDetails")}
-                      onChange={(e) => handleInputChange("officeDetails", e.target.value)}
-                      className="border-gray-200 resize-none h-14 text-sm py-1.5"
-                    />
-                  </div>
 
                   {/* AI clean / Suggestions actions */}
                   <div className="flex gap-2 pt-2">
@@ -936,7 +943,7 @@ export default function CardBuilder() {
                       {taglineSuggestions.map((t, idx) => (
                         <button
                           key={idx}
-                          onClick={() => handleInputChange("officeDetails", t)}
+                          onClick={() => handleInputChange("officeName", t)}
                           className="bg-white hover:bg-teal-100 text-teal-900 border border-teal-200 text-xs px-2.5 py-1 rounded-lg text-left shadow-sm"
                         >
                           {t}
