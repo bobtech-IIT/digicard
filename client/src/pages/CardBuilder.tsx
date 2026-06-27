@@ -30,6 +30,7 @@ interface TextBox {
   color: string;
   bold: boolean;
   italic: boolean;
+  width: number;  // SVG units — controls word-wrap column width
 }
 
 interface CardData {
@@ -383,11 +384,12 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
       color: cardData.brandColors?.primary || "#047857",
       bold: false,
       italic: false,
+      width: 300,  // default 300 SVG units — wraps at ~35 chars @ 14px
     };
     setTextBoxes(prev => [...prev, newBox]);
     setSelectedTextBoxId(id);
     setShowTextBoxPanel(true);
-    toast.success("Text box added — drag it on the card preview");
+    toast.success("Text box added — click \"Edit Layout\" then drag it on the card");
   };
 
   const handleUpdateTextBox = (id: string, updates: Partial<TextBox>) => {
@@ -1061,14 +1063,25 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                           className="h-7 text-xs border-gray-200"
                           placeholder="Text content…"
                         />
+                        {/* Font Size slider */}
                         <div className="flex gap-2 items-center">
-                          <label className="text-[10px] text-gray-500 shrink-0">Size</label>
+                          <label className="text-[10px] text-gray-500 shrink-0 w-10">Size</label>
                           <input
-                            type="range" min={8} max={32} value={sel.fontSize}
+                            type="range" min={8} max={48} value={sel.fontSize}
                             onChange={e => handleUpdateTextBox(sel.id, { fontSize: Number(e.target.value) })}
                             className="flex-1 h-1 accent-teal-600"
                           />
-                          <span className="text-[10px] font-mono text-gray-600 w-6">{sel.fontSize}</span>
+                          <span className="text-[10px] font-mono text-teal-600 w-8 text-right">{sel.fontSize}px</span>
+                        </div>
+                        {/* Box Width slider — controls word-wrap column */}
+                        <div className="flex gap-2 items-center">
+                          <label className="text-[10px] text-gray-500 shrink-0 w-10">Width</label>
+                          <input
+                            type="range" min={80} max={500} value={sel.width ?? 300}
+                            onChange={e => handleUpdateTextBox(sel.id, { width: Number(e.target.value) })}
+                            className="flex-1 h-1 accent-purple-600"
+                          />
+                          <span className="text-[10px] font-mono text-purple-600 w-8 text-right">{sel.width ?? 300}</span>
                         </div>
                         <div className="flex gap-2 items-center">
                           <label className="text-[10px] text-gray-500 shrink-0">Color</label>

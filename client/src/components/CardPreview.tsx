@@ -43,6 +43,7 @@ interface TextBox {
   color: string;
   bold: boolean;
   italic: boolean;
+  width: number;  // SVG units — controls word-wrap column width
 }
 
 interface CardPreviewProps {
@@ -454,35 +455,68 @@ export default function CardPreview({
     </defs>
   );
 
-  // ── Render text boxes as draggable SVG text elements ─────────────────────────
-  const renderTextBoxes = () => localTextBoxes.map(tb => (
-    <g key={tb.id}
-      style={{ cursor: editorMode ? "move" : "default" }}
-      onMouseDown={(e) => {
-        if (!editorMode) return;
-        e.preventDefault(); e.stopPropagation();
-        setDraggedTextBoxId(tb.id);
-        setTbDragStart({ x: e.clientX, y: e.clientY, ox: tb.x, oy: tb.y });
-      }}
-    >
-      <text
-        x={tb.x} y={tb.y}
-        fontSize={tb.fontSize}
-        fill={tb.color}
-        fontWeight={tb.bold ? "700" : "400"}
-        fontStyle={tb.italic ? "italic" : "normal"}
-        className="fc-body"
-      >{tb.text}</text>
-      {editorMode && (
-        <rect
-          x={tb.x - 2} y={tb.y - tb.fontSize - 2}
-          width={tb.text.length * tb.fontSize * 0.6 + 8}
-          height={tb.fontSize + 8}
-          rx="3" className="drag-outline"
-        />
-      )}
-    </g>
-  ));
+  // ── Render text boxes: proper word-wrap using tspan rows ──────────────────
+  const renderTextBoxes = () => localTextBoxes.map(tb => {
+    // Word-wrap: split text into lines that fit within tb.width SVG units
+    // Approximate: 1 char ≈ fontSize * 0.58 SVG units
+    const charsPerLine = Math.max(5, Math.floor(tb.width / (tb.fontSize * 0.58)));
+    const words = (tb.text || "").split(/\s+/);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      const candidate = cur ? cur + " " + w : w;
+      if (candidate.length > charsPerLine && cur) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = candidate;
+      }
+    }
+    if (cur) lines.push(cur);
+
+    const lineHeight = tb.fontSize * 1.35;
+    const boxH = lines.length * lineHeight + 8;
+
+    return (
+      <g key={tb.id}
+        style={{ cursor: editorMode ? "move" : "default" }}
+        onMouseDown={(e) => {
+          if (!editorMode) return;
+          e.preventDefault(); e.stopPropagation();
+          setDraggedTextBoxId(tb.id);
+          setTbDragStart({ x: e.clientX, y: e.clientY, ox: tb.x, oy: tb.y });
+        }}
+      >
+        {/* Editor outline — shows actual bounding box */}
+        {editorMode && (
+          <rect
+            x={tb.x - 4}
+            y={tb.y - tb.fontSize - 4}
+            width={tb.width + 8}
+            height={boxH}
+            rx="4"
+            className="drag-outline"
+          />
+        )}
+        {/* Word-wrapped text using tspan rows */}
+        <text
+          x={tb.x}
+          y={tb.y}
+          fontSize={tb.fontSize}
+          fill={tb.color}
+          fontWeight={tb.bold ? "700" : "400"}
+          fontStyle={tb.italic ? "italic" : "normal"}
+          className="fc-body"
+        >
+          {lines.map((line, i) => (
+            <tspan key={i} x={tb.x} dy={i === 0 ? 0 : lineHeight}>
+              {line}
+            </tspan>
+          ))}
+        </text>
+      </g>
+    );
+  });
 
   // ── Multi-line text helper (SVG tspan) ───────────────────────────────────────
   const multiline = (text: string, x: number, y: number, maxChars: number, lineHeight: number, style: object) => {
