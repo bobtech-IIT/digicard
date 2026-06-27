@@ -429,6 +429,28 @@ export default function CardPreview({
     onMouseDown: (e: React.MouseEvent) => handleMouseDown(e, item),
   });
 
+  // CSS-based scaled drag group — transform-box:fill-box ensures scale is
+  // around the element's OWN center, not SVG origin (fixes jump/disappear bug)
+  const scaledGroup = (item: string, children: React.ReactNode) => {
+    const o = offsets[item] || { x: 0, y: 0, scale: 1 };
+    const s = o.scale ?? 1;
+    const tx = o.x || 0;
+    const ty = o.y || 0;
+    return (
+      <g
+        onMouseDown={(e) => handleMouseDown(e, item)}
+        style={{
+          cursor: editorMode ? "move" : "default",
+          transform: `translate(${tx}px, ${ty}px) scale(${s})`,
+          transformBox: 'fill-box' as never,
+          transformOrigin: 'center' as never,
+        } as React.CSSProperties}
+      >
+        {children}
+      </g>
+    );
+  };
+
   const resizeHandle = (item: string, cx: number, cy: number) => editorMode && (
     <circle cx={cx} cy={cy} r={6} fill="#06b6d4" stroke="#fff" strokeWidth="1.5"
       style={{ cursor: "nwse-resize" }}
@@ -592,7 +614,7 @@ export default function CardPreview({
       </g>
 
       {/* ── Contact Row: Phone | WhatsApp | Email ── */}
-      <g {...dragHandle("contacts")} transform={`translate(${offsets.contacts?.x || 0},${offsets.contacts?.y || 0}) scale(${offsets.contacts?.scale || 1})`}>
+      {scaledGroup("contacts", <>
         {editorMode && <rect x="40" y="190" width="560" height="65" rx="6" className="drag-outline" />}
         {/* Separator line */}
         <line x1="50" y1="195" x2="620" y2="195" stroke="#e5e7eb" strokeWidth="1" />
@@ -628,17 +650,20 @@ export default function CardPreview({
           <text x="464" y="232" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.email, 30) || "Data Missing"}</text>
         </a>
         <line x1="50" y1="260" x2="620" y2="260" stroke="#e5e7eb" strokeWidth="1" />
-      </g>
+      </>)}
 
       {/* ── Address bottom-left ── */}
-      <g {...dragHandle("address")} transform={`translate(${offsets.address?.x || 0},${offsets.address?.y || 0})`}>
+      {scaledGroup("address", <>
         {editorMode && <rect x="40" y="268" width="430" height="50" rx="6" className="drag-outline" />}
         <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(48,275) scale(0.72)" />
         <text x="72" y="286" fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
         {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 72, 302, 55, 13,
           { fontSize: 9.5, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
 
-        {/* Social Icons (bottom row) */}
+      </>)}
+
+      {/* ── Social icons row ── */}
+      {scaledGroup("socials", <>
         <line x1="50" y1="345" x2="740" y2="345" stroke="#e5e7eb" strokeWidth="1" />
         <SocialIcon cx={480} cy={388} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
         <line x1="510" y1="373" x2="510" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
@@ -649,7 +674,7 @@ export default function CardPreview({
         <SocialIcon cx={660} cy={388} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" />
         <line x1="690" y1="373" x2="690" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={720} cy={388} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" />
-      </g>
+      </>)}
 
       {/* ── QR Code (bottom-right) ── */}
       <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
@@ -726,7 +751,7 @@ export default function CardPreview({
       </g>
 
       {/* ── Contacts (stacked: Phone, WhatsApp, Email, Website) — NO address here, address has its own section below ── */}
-      <g {...dragHandle("contacts")} transform={`translate(${offsets.contacts?.x || 0},${offsets.contacts?.y || 0})`}>
+      {scaledGroup("contacts", <>
         {editorMode && <rect x="304" y="173" width="310" height="160" rx="6" className="drag-outline" />}
         <line x1="310" y1="178" x2="610" y2="178" stroke="#e5e7eb" strokeWidth="1" />
         {/* Phone */}
@@ -754,7 +779,7 @@ export default function CardPreview({
           <path d={ICONS.globe} fill="#fff" transform="translate(318.5,303.5) scale(0.55)" />
           <text x="348" y="315" fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.social?.website || "", 30) || "Data Missing"}</text>
         </a>
-      </g>
+      </>)}
 
       {/* Vertical divider */}
       <line x1="622" y1="178" x2="622" y2="345" stroke="url(#dividerGrad)" strokeWidth="1.5" />
@@ -776,13 +801,15 @@ export default function CardPreview({
 
       {/* ── Bottom bar: Address + Socials ── */}
       <line x1="50" y1="350" x2="750" y2="350" stroke="url(#dividerGrad)" strokeWidth="1.5" />
-      <g {...dragHandle("address")} transform={`translate(${offsets.address?.x || 0},${offsets.address?.y || 0})`}>
+      {scaledGroup("address", <>
         {editorMode && <rect x="44" y="350" width="710" height="90" rx="6" className="drag-outline" />}
         <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(53,359) scale(0.75)" />
         <text x="75" y="370" fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
         {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 75, 386, 50, 13,
           { fontSize: 9, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
 
+      </>)}
+      {scaledGroup("socials", <>
         <SocialIcon cx={490} cy={390} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
         <line x1="514" y1="376" x2="514" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={543} cy={390} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" />
@@ -792,7 +819,7 @@ export default function CardPreview({
         <SocialIcon cx={649} cy={390} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" />
         <line x1="673" y1="376" x2="673" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={702} cy={390} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" />
-      </g>
+      </>)}
       {/* ── Free-form text boxes (draggable, optional) ── */}
       {renderTextBoxes()}
     </svg>
@@ -863,7 +890,7 @@ export default function CardPreview({
         <line x1="38" y1={hasPhoto ? 270 : 295} x2="476" y2={hasPhoto ? 270 : 295} stroke="url(#dividerGrad)" strokeWidth="1.5" />
 
         {/* ── Contacts (2×2 grid) — Phone/WhatsApp top row, Email/Website bottom row ── */}
-        <g {...dragHandle("contacts")} transform={`translate(${offsets.contacts?.x || 0},${offsets.contacts?.y || 0})`}>
+        {scaledGroup("contacts", <>
           {editorMode && <rect x="32" y={hasPhoto ? 274 : 299} width="450" height="140" rx="6" className="drag-outline" />}
           {/* Phone — top left */}
           <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
@@ -894,20 +921,20 @@ export default function CardPreview({
             <text x="294" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">WEBSITE</text>
             <text x="294" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.social?.website || "", 26) || "Data Missing"}</text>
           </a>
-        </g>
+        </>)}
 
         {/* Separator — gradient */}
         <line x1="38" y1={hasPhoto ? 408 : 433} x2="476" y2={hasPhoto ? 408 : 433} stroke="url(#dividerGrad)" strokeWidth="1.5" />
 
         {/* ── Address (bottom-left) ── */}
-        <g {...dragHandle("address")} transform={`translate(${offsets.address?.x || 0},${offsets.address?.y || 0})`}>
+        {scaledGroup("address", <>
           {editorMode && <rect x="32" y={hasPhoto ? 412 : 437} width="240" height="180" rx="6" className="drag-outline" />}
           <path d={ICONS.mapPin} fill={brandColors.primary} transform={`translate(38,${hasPhoto ? 423 : 448}) scale(0.8)`} />
           <text x="62" y={hasPhoto ? 437 : 462} fontSize="10" fontWeight="700" fill="#111827" className="fc-body">ADDRESS</text>
           <text x="62" y={hasPhoto ? 454 : 479} fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 25) || "Company Name Pvt. Ltd."}</text>
           {multiline(cardData.address || "City, State, Country", 62, hasPhoto ? 470 : 495, 28, 14,
             { fontSize: 9.5, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
-        </g>
+        </>)}
 
         {/* ── QR Code (bottom-right) — vertically aligned with ADDRESS top edge ── */}
         <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
@@ -926,7 +953,7 @@ export default function CardPreview({
 
         {/* ── Socials Bar (bottom) ── */}
         <line x1="38" y1={hasPhoto ? 660 : 685} x2="476" y2={hasPhoto ? 660 : 685} stroke="url(#dividerGrad)" strokeWidth="1.5" />
-        <g {...dragHandle("socials")} transform={`translate(${offsets.socials?.x || 0},${offsets.socials?.y || 0})`}>
+        {scaledGroup("socials", <>
           {editorMode && <rect x="32" y={hasPhoto ? 664 : 689} width="450" height="55" rx="6" className="drag-outline" />}
           <SocialIcon cx={70} cy={hasPhoto ? 700 : 725} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LINKEDIN" />
           <line x1="105" y1={hasPhoto ? 685 : 710} x2="105" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
@@ -937,7 +964,7 @@ export default function CardPreview({
           <SocialIcon cx={338} cy={hasPhoto ? 700 : 725} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="TWITTER" />
           <line x1="378" y1={hasPhoto ? 685 : 710} x2="378" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
           <SocialIcon cx={430} cy={hasPhoto ? 700 : 725} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="FACEBOOK" />
-        </g>
+        </>)}
         {/* ── Free-form text boxes (draggable, optional) ── */}
         {renderTextBoxes()}
       </svg>
