@@ -37,14 +37,14 @@ interface BatchCandidate {
 
 const EXPECTED_HEADERS = {
   name: ["name", "fullname", "full name", "employee name", "candidate name"],
-  designation: ["designation", "role", "title", "jobtitle", "job title"],
-  phone: ["phone", "mobile", "contact", "phone number", "mobile number"],
-  email: ["email", "emailaddress", "email address"],
-  address: ["address", "office address", "location"],
-  officeName: ["officename", "office name", "company", "company name"],
-  officeDetails: ["officedetails", "office details", "tagline", "company details"],
+  designation: ["designation", "role", "title", "jobtitle", "job title", "current designation"],
+  phone: ["phone", "mobile", "contact", "phone number", "mobile number", "mobile no.", "mobile no"],
+  email: ["email", "emailaddress", "email address", "email id", "emailid"],
+  address: ["address", "office address", "location", "address"],
+  officeName: ["officename", "office name", "company", "company name", "current company"],
+  officeDetails: ["officedetails", "office details", "tagline", "company details", "position title"],
   website: ["website", "site", "webpage", "weburl", "web url", "url"],
-  linkedin: ["linkedin", "linkedin url", "linkedin handle"],
+  linkedin: ["linkedin", "linkedin url", "linkedin handle", "linkedin profile url"],
   twitter: ["twitter", "x", "twitter handle", "x handle"],
   instagram: ["instagram", "insta", "instagram handle"],
   facebook: ["facebook", "fb", "facebook handle"],
@@ -58,7 +58,7 @@ export default function BatchProcessor() {
   const [, navigate] = useLocation();
   const [candidates, setCandidates] = useState<BatchCandidate[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [layoutType, setLayoutType] = useState<"horizontal-no-photo" | "horizontal-with-photo" | "vertical">("horizontal-no-photo");
+  const [layoutType, setLayoutType] = useState<"horizontal-no-photo" | "horizontal-with-photo" | "vertical-no-photo" | "vertical-with-photo">("horizontal-no-photo");
   const [previewCandidate, setPreviewCandidate] = useState<BatchCandidate | null>(null);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
@@ -261,7 +261,7 @@ export default function BatchProcessor() {
         const viewBoxWidth = svgEl.viewBox?.baseVal?.width || 800;
         const viewBoxHeight = svgEl.viewBox?.baseVal?.height || 450;
         const pdf = new jsPDF({
-          orientation: layoutType === "vertical" ? "portrait" : "landscape",
+          orientation: layoutType.startsWith("vertical") ? "portrait" : "landscape",
           unit: "px",
           format: [viewBoxWidth, viewBoxHeight],
         });
@@ -331,7 +331,7 @@ export default function BatchProcessor() {
                 size="sm"
                 onClick={() => setLayoutType("horizontal-no-photo")}
                 variant={layoutType === "horizontal-no-photo" ? "default" : "outline"}
-                className={layoutType === "horizontal-no-photo" ? "bg-teal-700 hover:bg-teal-800" : "bg-white"}
+                className={layoutType === "horizontal-no-photo" ? "bg-teal-700 hover:bg-teal-800 text-white font-bold" : "bg-white"}
               >
                 Horizontal (No Photo)
               </Button>
@@ -339,17 +339,25 @@ export default function BatchProcessor() {
                 size="sm"
                 onClick={() => setLayoutType("horizontal-with-photo")}
                 variant={layoutType === "horizontal-with-photo" ? "default" : "outline"}
-                className={layoutType === "horizontal-with-photo" ? "bg-teal-700 hover:bg-teal-800" : "bg-white"}
+                className={layoutType === "horizontal-with-photo" ? "bg-teal-700 hover:bg-teal-800 text-white font-bold" : "bg-white"}
               >
                 Horizontal (With Photo)
               </Button>
               <Button
                 size="sm"
-                onClick={() => setLayoutType("vertical")}
-                variant={layoutType === "vertical" ? "default" : "outline"}
-                className={layoutType === "vertical" ? "bg-teal-700 hover:bg-teal-800" : "bg-white"}
+                onClick={() => setLayoutType("vertical-no-photo")}
+                variant={layoutType === "vertical-no-photo" ? "default" : "outline"}
+                className={layoutType === "vertical-no-photo" ? "bg-teal-700 hover:bg-teal-800 text-white font-bold" : "bg-white"}
               >
-                Vertical (3:4)
+                Vertical (No Photo)
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setLayoutType("vertical-with-photo")}
+                variant={layoutType === "vertical-with-photo" ? "default" : "outline"}
+                className={layoutType === "vertical-with-photo" ? "bg-teal-700 hover:bg-teal-800 text-white font-bold" : "bg-white"}
+              >
+                Vertical (With Photo)
               </Button>
             </div>
           </Card>

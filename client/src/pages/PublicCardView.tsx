@@ -77,9 +77,9 @@ export default function PublicCardView() {
   }
 
   // Map database aspectRatio to layoutType
-  let layoutType: "horizontal-no-photo" | "horizontal-with-photo" | "vertical" = "horizontal-no-photo";
+  let layoutType: "horizontal-no-photo" | "horizontal-with-photo" | "vertical-no-photo" | "vertical-with-photo" = "horizontal-no-photo";
   if (card.aspectRatio === "3:4") {
-    layoutType = "vertical";
+    layoutType = card.headshotUrl ? "vertical-with-photo" : "vertical-no-photo";
   } else {
     layoutType = card.headshotUrl ? "horizontal-with-photo" : "horizontal-no-photo";
   }

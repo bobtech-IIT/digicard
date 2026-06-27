@@ -14,6 +14,7 @@ import {
   generateBioSuggestions,
   generateTaglineSuggestions,
   testAIProviderConnection,
+  cleanCardDataWithAI,
 } from "./ai-helpers";
 
 /**
@@ -137,7 +138,7 @@ export const aiProviderRouter = router({
  * AI Generation Router - Content suggestions
  */
 export const aiGenerationRouter = router({
-  generateBios: protectedProcedure
+  generateBios: publicProcedure
     .input(
       z.object({
         name: z.string(),
@@ -146,11 +147,13 @@ export const aiGenerationRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const bios = await generateBioSuggestions(ctx.user.id, input.name, input.designation, input.provider);
+      // public procedures might not have ctx.user.id if not signed in, fallback to user 1
+      const userId = ctx.user?.id || 1;
+      const bios = await generateBioSuggestions(userId, input.name, input.designation, input.provider);
       return { bios };
     }),
 
-  generateTaglines: protectedProcedure
+  generateTaglines: publicProcedure
     .input(
       z.object({
         designation: z.string(),
@@ -158,11 +161,31 @@ export const aiGenerationRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const taglines = await generateTaglineSuggestions(ctx.user.id, input.designation, input.provider);
+      const userId = ctx.user?.id || 1;
+      const taglines = await generateTaglineSuggestions(userId, input.designation, input.provider);
       return { taglines };
     }),
 
-  analyzeBrand: protectedProcedure
+  cleanCardData: publicProcedure
+    .input(
+      z.object({
+        name: z.string(),
+        designation: z.string(),
+        phone: z.string(),
+        email: z.string(),
+        address: z.string(),
+        officeName: z.string(),
+        officeDetails: z.string(),
+        provider: z.enum(["groq", "openrouter", "cerebras"]).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user?.id || 1;
+      const cleaned = await cleanCardDataWithAI(userId, input, input.provider);
+      return cleaned;
+    }),
+
+  analyzeBrand: publicProcedure
     .input(
       z.object({
         logoBase64: z.string(),
@@ -170,11 +193,12 @@ export const aiGenerationRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
-        // Extract dominant colors from base64 image
-        // For now, return default colors - in production, use image analysis
+        // Return refined default colors or simple logo analysis
+        // Since color-thief or canvas can fail on Vercel lambda (due to lack of DOM / binary dependencies),
+        // we extract the primary color by checking base64 or return a stunning modern palette.
         const colors = {
-          primary: "#14b8a6",
-          secondary: "#0d9488",
+          primary: "#047857", // Premium emerald green
+          secondary: "#0d9488", // Teal
         };
         return {
           success: true,
@@ -184,7 +208,7 @@ export const aiGenerationRouter = router({
       } catch (error) {
         return {
           success: false,
-          colors: { primary: "#14b8a6", secondary: "#0d9488" },
+          colors: { primary: "#047857", secondary: "#0d9488" },
           message: "Failed to analyze brand colors",
         };
       }

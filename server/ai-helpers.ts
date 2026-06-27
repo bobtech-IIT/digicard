@@ -215,3 +215,68 @@ export async function testAIProviderConnection(
     };
   }
 }
+
+/**
+ * Clean and format card details using AI
+ */
+export async function cleanCardDataWithAI(
+  userId: number,
+  cardFields: {
+    name: string;
+    designation: string;
+    phone: string;
+    email: string;
+    address: string;
+    officeName: string;
+    officeDetails: string;
+  },
+  provider?: "groq" | "openrouter" | "cerebras"
+): Promise<any> {
+  const prompt = `Format and clean up the following details for a professional visiting card:
+Name: ${cardFields.name}
+Designation: ${cardFields.designation}
+Phone: ${cardFields.phone}
+Email: ${cardFields.email}
+Address: ${cardFields.address}
+Office Name: ${cardFields.officeName}
+Office Details: ${cardFields.officeDetails}
+
+Follow these strict cleanup rules:
+1. Standardize the Phone number to a clean, readable mobile format (e.g. "+91 XXXXX XXXXX" or "+1 (XXX) XXX-XXXX"). If it contains "Data Missing" or "missing value", keep it as "Data Missing".
+2. Capitalize Name, Designation, and Office Name using proper Title Case.
+3. Clean spelling errors, formatting typos, and standardize addresses. If a field value is "missing value", replace it with "Data Missing".
+4. Return ONLY a valid JSON object matching the exact keys: name, designation, phone, email, address, officeName, officeDetails. Do not include markdown code block syntax (like \`\`\`json) or any extra conversational text.`;
+
+  const response = await generateAIContent({ userId, prompt, provider });
+
+  if (!response.success) {
+    return {
+      name: cardFields.name === "missing value" ? "Data Missing" : cardFields.name,
+      designation: cardFields.designation === "missing value" ? "Data Missing" : cardFields.designation,
+      phone: cardFields.phone === "missing value" ? "Data Missing" : cardFields.phone,
+      email: cardFields.email === "missing value" ? "Data Missing" : cardFields.email,
+      address: cardFields.address === "missing value" ? "Data Missing" : cardFields.address,
+      officeName: cardFields.officeName === "missing value" ? "Data Missing" : cardFields.officeName,
+      officeDetails: cardFields.officeDetails === "missing value" ? "Data Missing" : cardFields.officeDetails,
+    };
+  }
+
+  try {
+    let cleanJson = response.content.trim();
+    if (cleanJson.startsWith("```")) {
+      cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+    }
+    return JSON.parse(cleanJson);
+  } catch (err) {
+    console.error("Failed to parse AI response JSON:", response.content, err);
+    return {
+      name: cardFields.name === "missing value" ? "Data Missing" : cardFields.name,
+      designation: cardFields.designation === "missing value" ? "Data Missing" : cardFields.designation,
+      phone: cardFields.phone === "missing value" ? "Data Missing" : cardFields.phone,
+      email: cardFields.email === "missing value" ? "Data Missing" : cardFields.email,
+      address: cardFields.address === "missing value" ? "Data Missing" : cardFields.address,
+      officeName: cardFields.officeName === "missing value" ? "Data Missing" : cardFields.officeName,
+      officeDetails: cardFields.officeDetails === "missing value" ? "Data Missing" : cardFields.officeDetails,
+    };
+  }
+}

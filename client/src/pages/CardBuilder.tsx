@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,15 +6,19 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import CardPreview from "@/components/CardPreview";
 import AISettings from "@/components/AISettings";
 import BrandAssets from "@/components/BrandAssets";
 import { useLocation } from "wouter";
-import { Sparkles, Settings, Upload, Save, Copy, MessageCircle, FileSpreadsheet } from "lucide-react";
+import { Sparkles, Settings, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, Check, ClipboardCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
+import { jsPDF } from "jspdf";
 import { resizeImageBase64 } from "@/lib/image-utils";
+import { convertSvgToPngDataUrl } from "@/lib/export-utils";
 
 interface CardData {
   headshot: string | null;
@@ -45,14 +49,14 @@ interface CardData {
 
 const EXPECTED_HEADERS = {
   name: ["name", "fullname", "full name", "employee name", "candidate name"],
-  designation: ["designation", "role", "title", "jobtitle", "job title"],
-  phone: ["phone", "mobile", "contact", "phone number", "mobile number"],
-  email: ["email", "emailaddress", "email address"],
-  address: ["address", "office address", "location"],
-  officeName: ["officename", "office name", "company", "company name"],
-  officeDetails: ["officedetails", "office details", "tagline", "company details"],
+  designation: ["designation", "role", "title", "jobtitle", "job title", "current designation"],
+  phone: ["phone", "mobile", "contact", "phone number", "mobile number", "mobile no.", "mobile no"],
+  email: ["email", "emailaddress", "email address", "email id", "emailid"],
+  address: ["address", "office address", "location", "address"],
+  officeName: ["officename", "office name", "company", "company name", "current company"],
+  officeDetails: ["officedetails", "office details", "tagline", "company details", "position title"],
   website: ["website", "site", "webpage", "weburl", "web url", "url"],
-  linkedin: ["linkedin", "linkedin url", "linkedin handle"],
+  linkedin: ["linkedin", "linkedin url", "linkedin handle", "linkedin profile url"],
   twitter: ["twitter", "x", "twitter handle", "x handle"],
   instagram: ["instagram", "insta", "instagram handle"],
   facebook: ["facebook", "fb", "facebook handle"],
@@ -64,22 +68,35 @@ const EXPECTED_HEADERS = {
 
 export default function CardBuilder() {
   const [, navigate] = useLocation();
-  const [layoutType, setLayoutType] = useState<"horizontal-no-photo" | "horizontal-with-photo" | "vertical">("horizontal-no-photo");
+  const [layoutType, setLayoutType] = useState<"horizontal-no-photo" | "horizontal-with-photo" | "vertical-no-photo" | "vertical-with-photo">("horizontal-no-photo");
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [bioSuggestions, setBioSuggestions] = useState<string[]>([]);
   const [taglineSuggestions, setTaglineSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
   // Custom offsets from the drag editor
-  const [offsets, setOffsets] = useState<Record<string, { x: number; y: number }>>({});
+  const [offsets, setOffsets] = useState<Record<string, { x: number; y: number; scale?: number; fontSize?: number }>>({});
   
   // State for the public share modal
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [savedCardId, setSavedCardId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Candidate DB states from Excel upload
+  const [dashboardRows, setDashboardRows] = useState<any[]>([]);
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
+  const [checkedCandidateIndexes, setCheckedCandidateIndexes] = useState<number[]>([]);
+  
+  // Focused field name for column cell mapping
+  const [lastFocusedField, setLastFocusedField] = useState<string | null>("officeDetails");
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState(0);
+
   const bioMutation = trpc.aiGeneration.generateBios.useMutation();
   const taglineMutation = trpc.aiGeneration.generateTaglines.useMutation();
+  const cleanMutation = trpc.aiGeneration.cleanCardData.useMutation();
   const saveMutation = trpc.card.create.useMutation();
 
   const [cardData, setCardData] = useState<CardData>({
@@ -158,6 +175,43 @@ export default function CardBuilder() {
     }));
   };
 
+  // AI-powered data formatting/cleaning
+  const handleAICleanData = async () => {
+    if (!cardData.name) {
+      toast.error("Please enter candidate name first");
+      return;
+    }
+    setIsCleaning(true);
+    try {
+      const cleaned = await cleanMutation.mutateAsync({
+        name: cardData.name,
+        designation: cardData.designation,
+        phone: cardData.phone,
+        email: cardData.email,
+        address: cardData.address,
+        officeName: cardData.officeName,
+        officeDetails: cardData.officeDetails,
+      });
+
+      setCardData((prev) => ({
+        ...prev,
+        name: cleaned.name,
+        designation: cleaned.designation,
+        phone: cleaned.phone,
+        email: cleaned.email,
+        address: cleaned.address,
+        officeName: cleaned.officeName,
+        officeDetails: cleaned.officeDetails,
+      }));
+      toast.success("Card data formatted by AI successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to run AI data formatting");
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
   const handleGenerateSuggestions = async () => {
     if (!cardData.name || !cardData.designation) {
       toast.error("Please enter name and designation first");
@@ -181,48 +235,50 @@ export default function CardBuilder() {
     }
   };
 
-  // Excel / CSV Autofill parser
-  const handleAutofillUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Map a row to the card inputs
+  const selectCandidateRow = (row: any, index: number) => {
+    setSelectedRowIndex(index);
+    const headers = Object.keys(row);
+
+    const getColVal = (expectedList: string[]): string => {
+      const match = headers.find(h => expectedList.includes(h.toLowerCase()));
+      if (match) {
+        const val = String(row[match] || "").trim();
+        return val === "missing value" || val === "" ? "Data Missing" : val;
+      }
+      return "Data Missing";
+    };
+
+    setCardData((prev) => ({
+      ...prev,
+      name: getColVal(EXPECTED_HEADERS.name),
+      designation: getColVal(EXPECTED_HEADERS.designation),
+      phone: getColVal(EXPECTED_HEADERS.phone),
+      email: getColVal(EXPECTED_HEADERS.email),
+      address: getColVal(EXPECTED_HEADERS.address),
+      officeName: getColVal(EXPECTED_HEADERS.officeName),
+      officeDetails: getColVal(EXPECTED_HEADERS.officeDetails),
+      social: {
+        linkedin: getColVal(EXPECTED_HEADERS.linkedin),
+        twitter: getColVal(EXPECTED_HEADERS.twitter),
+        instagram: getColVal(EXPECTED_HEADERS.instagram),
+        facebook: getColVal(EXPECTED_HEADERS.facebook),
+        youtube: getColVal(EXPECTED_HEADERS.youtube),
+        github: getColVal(EXPECTED_HEADERS.github),
+        tiktok: getColVal(EXPECTED_HEADERS.tiktok),
+        whatsapp: getColVal(EXPECTED_HEADERS.whatsapp),
+        website: getColVal(EXPECTED_HEADERS.website),
+      }
+    }));
+    toast.success(`Loaded candidate: ${row["Candidate Name"] || row["Name"] || "Record " + (index + 1)}`);
+  };
+
+  // Excel / CSV Dashboard file uploader
+  const handleDashboardExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    
-    // Check missing columns helper
-    const parseRowData = (headers: string[], row: any) => {
-      const parsedData: any = { social: {} };
-      
-      const getColumnValue = (fieldsList: string[]): string => {
-        // Find matching header case-insensitively
-        const matchedHeader = headers.find(h => fieldsList.includes(h.toLowerCase()));
-        if (matchedHeader) {
-          return String(row[matchedHeader] || "").trim();
-        }
-        return "Data Missing";
-      };
-
-      // Map basic info
-      parsedData.name = getColumnValue(EXPECTED_HEADERS.name);
-      parsedData.designation = getColumnValue(EXPECTED_HEADERS.designation);
-      parsedData.phone = getColumnValue(EXPECTED_HEADERS.phone);
-      parsedData.email = getColumnValue(EXPECTED_HEADERS.email);
-      parsedData.address = getColumnValue(EXPECTED_HEADERS.address);
-      parsedData.officeName = getColumnValue(EXPECTED_HEADERS.officeName);
-      parsedData.officeDetails = getColumnValue(EXPECTED_HEADERS.officeDetails);
-
-      // Map social links
-      parsedData.social.linkedin = getColumnValue(EXPECTED_HEADERS.linkedin);
-      parsedData.social.twitter = getColumnValue(EXPECTED_HEADERS.twitter);
-      parsedData.social.instagram = getColumnValue(EXPECTED_HEADERS.instagram);
-      parsedData.social.facebook = getColumnValue(EXPECTED_HEADERS.facebook);
-      parsedData.social.youtube = getColumnValue(EXPECTED_HEADERS.youtube);
-      parsedData.social.github = getColumnValue(EXPECTED_HEADERS.github);
-      parsedData.social.tiktok = getColumnValue(EXPECTED_HEADERS.tiktok);
-      parsedData.social.whatsapp = getColumnValue(EXPECTED_HEADERS.whatsapp);
-      parsedData.social.website = getColumnValue(EXPECTED_HEADERS.website);
-
-      return parsedData;
-    };
 
     if (file.name.endsWith(".csv")) {
       reader.onload = (event) => {
@@ -234,20 +290,22 @@ export default function CardBuilder() {
             return;
           }
           const headers = lines[0].split(",").map(h => h.replace(/^["']|["']$/g, "").trim());
-          const values = lines[1].split(",").map(v => v.replace(/^["']|["']$/g, "").trim());
           
-          const rowObject: any = {};
-          headers.forEach((h, idx) => {
-            rowObject[h] = values[idx] || "";
-          });
+          const rows: any[] = [];
+          for (let i = 1; i < Math.min(lines.length, 51); i++) {
+            const values = lines[i].split(",").map(v => v.replace(/^["']|["']$/g, "").trim());
+            const rowObject: any = {};
+            headers.forEach((h, idx) => {
+              rowObject[h] = values[idx] || "";
+            });
+            rows.push(rowObject);
+          }
 
-          const autofilled = parseRowData(headers, rowObject);
-          setCardData((prev) => ({
-            ...prev,
-            ...autofilled,
-            social: { ...prev.social, ...autofilled.social },
-          }));
-          toast.success("Form autofilled from CSV successfully!");
+          setAvailableColumns(headers);
+          setDashboardRows(rows);
+          setCheckedCandidateIndexes(rows.map((_, i) => i).slice(0, 10)); // Default check first 10
+          setSelectedRowIndex(null);
+          toast.success(`Loaded ${rows.length} candidate rows on dashboard!`);
         } catch (err) {
           console.error(err);
           toast.error("Failed to parse CSV file");
@@ -255,7 +313,7 @@ export default function CardBuilder() {
       };
       reader.readAsText(file);
     } else {
-      // Excel sheets
+      // Excel files
       reader.onload = (event) => {
         try {
           const binary = new Uint8Array(event.target?.result as ArrayBuffer);
@@ -269,16 +327,14 @@ export default function CardBuilder() {
             return;
           }
 
-          // Extract headers
-          const headers = Object.keys(rows[0]);
-          const autofilled = parseRowData(headers, rows[0]);
+          const limitedRows = rows.slice(0, 50); // limit to 50
+          const headers = Object.keys(limitedRows[0]);
 
-          setCardData((prev) => ({
-            ...prev,
-            ...autofilled,
-            social: { ...prev.social, ...autofilled.social },
-          }));
-          toast.success("Form autofilled from Excel successfully!");
+          setAvailableColumns(headers);
+          setDashboardRows(limitedRows);
+          setCheckedCandidateIndexes(limitedRows.map((_, i) => i).slice(0, 10)); // Default check first 10
+          setSelectedRowIndex(null);
+          toast.success(`Loaded ${limitedRows.length} candidate rows from Excel!`);
         } catch (err) {
           console.error(err);
           toast.error("Failed to parse Excel file");
@@ -288,7 +344,182 @@ export default function CardBuilder() {
     }
   };
 
-  // Save Card to database & open sharing dialog
+  // Map extra column value to focused field
+  const handleMapColumnValue = (columnName: string) => {
+    if (selectedRowIndex === null) {
+      toast.error("Please select a candidate row first");
+      return;
+    }
+    if (!lastFocusedField) {
+      toast.error("Please click inside an input box on the left first to target it");
+      return;
+    }
+
+    const row = dashboardRows[selectedRowIndex];
+    const val = String(row[columnName] || "").trim();
+    if (val && val !== "missing value") {
+      if (lastFocusedField.includes(".")) {
+        const [parent, child] = lastFocusedField.split(".");
+        setCardData((prev) => {
+          const pVal = prev[parent as keyof CardData] as Record<string, string>;
+          const original = pVal[child] || "";
+          const separator = original ? " | " : "";
+          return {
+            ...prev,
+            [parent]: {
+              ...pVal,
+              [child]: original + separator + val,
+            }
+          };
+        });
+      } else {
+        setCardData((prev) => {
+          const original = String(prev[lastFocusedField as keyof CardData] || "");
+          const separator = original ? " | " : "";
+          return {
+            ...prev,
+            [lastFocusedField]: original + separator + val,
+          };
+        });
+      }
+      toast.success(`Appended ${columnName} data to field`);
+    } else {
+      toast.warning(`Column ${columnName} is empty for this candidate`);
+    }
+  };
+
+  // Toggle candidate checkbox for Batch selection
+  const handleToggleCandidate = (idx: number) => {
+    setCheckedCandidateIndexes((prev) => {
+      if (prev.includes(idx)) {
+        return prev.filter((i) => i !== idx);
+      } else {
+        if (prev.length >= 10) {
+          toast.error("Maximum 10 cards can be selected for batch generation");
+          return prev;
+        }
+        return [...prev, idx];
+      }
+    });
+  };
+
+  // Download ZIP of checked cards directly in selected layout
+  const handleBatchDownloadZIP = async () => {
+    if (checkedCandidateIndexes.length === 0) {
+      toast.error("Please select at least 1 candidate for batch generation");
+      return;
+    }
+    setIsZipping(true);
+    setZipProgress(0);
+    try {
+      const zip = new JSZip();
+
+      for (let i = 0; i < checkedCandidateIndexes.length; i++) {
+        const idx = checkedCandidateIndexes[i];
+        setZipProgress(Math.round((i / checkedCandidateIndexes.length) * 100));
+
+        const row = dashboardRows[idx];
+        const headers = Object.keys(row);
+        const getColVal = (expectedList: string[]): string => {
+          const match = headers.find(h => expectedList.includes(h.toLowerCase()));
+          if (match) {
+            const val = String(row[match] || "").trim();
+            return val === "missing value" || val === "" ? "Data Missing" : val;
+          }
+          return "Data Missing";
+        };
+
+        const cData = {
+          name: getColVal(EXPECTED_HEADERS.name),
+          designation: getColVal(EXPECTED_HEADERS.designation),
+          phone: getColVal(EXPECTED_HEADERS.phone),
+          email: getColVal(EXPECTED_HEADERS.email),
+          address: getColVal(EXPECTED_HEADERS.address),
+          officeName: getColVal(EXPECTED_HEADERS.officeName),
+          officeDetails: getColVal(EXPECTED_HEADERS.officeDetails),
+          social: {
+            linkedin: getColVal(EXPECTED_HEADERS.linkedin),
+            twitter: getColVal(EXPECTED_HEADERS.twitter),
+            instagram: getColVal(EXPECTED_HEADERS.instagram),
+            facebook: getColVal(EXPECTED_HEADERS.facebook),
+            youtube: getColVal(EXPECTED_HEADERS.youtube),
+            github: getColVal(EXPECTED_HEADERS.github),
+            tiktok: getColVal(EXPECTED_HEADERS.tiktok),
+            whatsapp: getColVal(EXPECTED_HEADERS.whatsapp),
+            website: getColVal(EXPECTED_HEADERS.website),
+          },
+          brandColors: cardData.brandColors,
+          brandLogo: cardData.brandLogo,
+          headshot: null
+        };
+
+        // Render hidden SVG inside temporary container
+        const hiddenDiv = document.createElement("div");
+        hiddenDiv.style.position = "absolute";
+        hiddenDiv.style.left = "-9999px";
+        hiddenDiv.style.top = "-9999px";
+        document.body.appendChild(hiddenDiv);
+
+        // Render elements manually via innerHTML to capture correctly
+        const firstName = cData.name.split(/\s+/)[0] || "";
+        const lastName = cData.name.split(/\s+/).slice(1).join(" ") || "";
+        
+        const isVert = layoutType.startsWith("vertical");
+        const w = isVert ? 600 : 800;
+        const h = isVert ? 900 : 450;
+
+        // Simplified SVG generation specifically for fast batch ZIP capture
+        const svgString = `
+          <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+            <rect width="${w}" height="${h}" fill="#ffffff" rx="16" />
+            <text x="50" y="100" font-size="36" font-weight="bold" fill="#000000">${firstName}</text>
+            <text x="50" y="150" font-size="36" font-weight="bold" fill="${cardData.brandColors?.primary || '#047857'}">${lastName}</text>
+            <text x="50" y="200" font-size="18" font-weight="bold" fill="#000000">${cData.designation}</text>
+            <text x="50" y="230" font-size="16" fill="#6b7280">${cData.officeName}</text>
+            <text x="50" y="270" font-size="12" fill="#4b5563">Phone: ${cData.phone}</text>
+            <text x="50" y="290" font-size="12" fill="#4b5563">Email: ${cData.email}</text>
+            <text x="50" y="310" font-size="12" fill="#4b5563">Website: ${cData.social.website}</text>
+          </svg>
+        `;
+        
+        hiddenDiv.innerHTML = svgString;
+        const svgEl = hiddenDiv.querySelector("svg") as unknown as SVGSVGElement;
+
+        const filename = cData.name.replace(/\s+/g, "_");
+        zip.file(`${filename}.svg`, svgString);
+
+        const pngUrl = await convertSvgToPngDataUrl(svgEl, 2);
+        const pngBase64 = pngUrl.split(",")[1];
+        zip.file(`${filename}.png`, pngBase64, { base64: true });
+
+        const pdf = new jsPDF({
+          orientation: isVert ? "portrait" : "landscape",
+          unit: "px",
+          format: [w, h],
+        });
+        pdf.addImage(pngUrl, "PNG", 0, 0, w, h);
+        zip.file(`${filename}.pdf`, pdf.output("arraybuffer"));
+
+        document.body.removeChild(hiddenDiv);
+      }
+
+      setZipProgress(100);
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `glasscards_batch_dashboard.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Successfully batch generated ZIP with ${checkedCandidateIndexes.length} cards!`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate ZIP bundle of batch cards");
+    } finally {
+      setIsZipping(false);
+    }
+  };
+
   const handleSaveCard = async () => {
     if (!cardData.name) {
       toast.error("Please enter a card name first");
@@ -296,7 +527,6 @@ export default function CardBuilder() {
     }
     setIsSaving(true);
     try {
-      // Compress uploads to prevent row size limits
       const compressedHeadshot = cardData.headshot ? await resizeImageBase64(cardData.headshot, 200, 200) : "";
       const compressedLogo = cardData.brandLogo ? await resizeImageBase64(cardData.brandLogo, 150, 75) : "";
 
@@ -317,7 +547,7 @@ export default function CardBuilder() {
         officeDetails: cardData.officeDetails,
         headshotUrl: compressedHeadshot,
         socialLinks: socialLinksData,
-        aspectRatio: layoutType === "vertical" ? "3:4" : "16:9"
+        aspectRatio: layoutType.startsWith("vertical") ? "3:4" : "16:9"
       });
 
       if (result.success && result.id) {
@@ -353,12 +583,13 @@ export default function CardBuilder() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-teal-50 to-green-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto space-y-6">
+        
         {/* Header */}
-        <div className="mb-6 flex justify-between items-center flex-wrap gap-4">
+        <div className="flex justify-between items-center flex-wrap gap-4">
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">GlassCard AI</h1>
-            <p className="text-gray-600">Create beautiful, fully clickable digital visiting cards</p>
+            <p className="text-gray-600">Create beautiful, fully clickable digital visiting cards with AI-assisted layout scaling</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -379,32 +610,60 @@ export default function CardBuilder() {
           </div>
         </div>
 
+        {/* Dashboard Excel/CSV file uploader section (up to 50 rows) */}
+        <Card className="p-4 border-dashed border-2 border-teal-300 bg-white/70 backdrop-blur-sm shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <FileSpreadsheet className="text-teal-600 shrink-0" size={32} />
+            <div>
+              <h3 className="font-bold text-gray-800 text-sm">Interactive Candidate Spreadsheet Dashboard</h3>
+              <p className="text-xs text-gray-500">Upload up to 50 candidate records. Select rows to edit, or checkbox up to 10 for batch ZIP generation.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-colors shadow-sm flex items-center gap-1.5">
+              <Upload size={14} />
+              Upload spreadsheet
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleDashboardExcelUpload}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </Card>
+
+        {/* Column pill mapper section */}
+        {dashboardRows.length > 0 && selectedRowIndex !== null && (
+          <Card className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-amber-800 flex items-center gap-1">
+                <Sparkle size={14} />
+                Map Extra spreadsheet columns to card inputs
+              </span>
+              <span className="text-[10px] text-gray-500">
+                Active target input: <strong className="text-amber-800 underline font-mono">{lastFocusedField}</strong> (click any input box below to select target)
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {availableColumns.map((col) => (
+                <button
+                  key={col}
+                  onClick={() => handleMapColumnValue(col)}
+                  className="bg-white hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors shadow-sm"
+                >
+                  + {col}
+                </button>
+              ))}
+            </div>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Form Section - Left Column (Clean, tight padding, overlap-free) */}
+          {/* Left Editor Panel */}
           <div className="lg:col-span-1">
             <Card className="glass-card p-4 space-y-4 shadow-md bg-white/80 border border-white/20">
               
-              {/* Excel / CSV Autofill Dropzone (Top priority for ease-of-use) */}
-              <div className="border border-dashed border-teal-300 bg-teal-50/50 p-3 rounded-xl flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="text-teal-600 shrink-0" size={24} />
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-800">Quick Excel/CSV Autofill</h4>
-                    <p className="text-[10px] text-gray-500">Upload candidate rows to fill form</p>
-                  </div>
-                </div>
-                <label className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg cursor-pointer transition-colors shadow-sm flex items-center gap-1">
-                  <Upload size={12} />
-                  Upload
-                  <input
-                    type="file"
-                    accept=".csv,.xlsx,.xls"
-                    onChange={handleAutofillUpload}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
               {/* Form Tabs */}
               <Tabs defaultValue="basic" className="w-full">
                 <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 rounded-lg">
@@ -415,7 +674,7 @@ export default function CardBuilder() {
 
                 {/* Basic Info Tab */}
                 <TabsContent value="basic" className="space-y-3 mt-3">
-                  {/* Headshot Photo */}
+                  {/* Headshot photo */}
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-700">Headshot Photo</label>
                     <input
@@ -428,7 +687,7 @@ export default function CardBuilder() {
                       <img
                         src={cardData.headshot}
                         alt="Headshot preview"
-                        className="w-full h-24 object-cover rounded-lg border"
+                        className="w-full h-24 object-cover rounded-lg border mt-1"
                       />
                     )}
                   </div>
@@ -439,6 +698,7 @@ export default function CardBuilder() {
                     <Input
                       placeholder="John Doe"
                       value={cardData.name}
+                      onFocus={() => setLastFocusedField("name")}
                       onChange={(e) => handleInputChange("name", e.target.value)}
                       className="border-gray-200 h-8 text-sm"
                     />
@@ -450,6 +710,7 @@ export default function CardBuilder() {
                     <Input
                       placeholder="Product Designer"
                       value={cardData.designation}
+                      onFocus={() => setLastFocusedField("designation")}
                       onChange={(e) => handleInputChange("designation", e.target.value)}
                       className="border-gray-200 h-8 text-sm"
                     />
@@ -461,6 +722,7 @@ export default function CardBuilder() {
                     <Input
                       placeholder="+1 (555) 123-4567"
                       value={cardData.phone}
+                      onFocus={() => setLastFocusedField("phone")}
                       onChange={(e) => handleInputChange("phone", e.target.value)}
                       className="border-gray-200 h-8 text-sm"
                     />
@@ -473,6 +735,7 @@ export default function CardBuilder() {
                       placeholder="john@example.com"
                       type="email"
                       value={cardData.email}
+                      onFocus={() => setLastFocusedField("email")}
                       onChange={(e) => handleInputChange("email", e.target.value)}
                       className="border-gray-200 h-8 text-sm"
                     />
@@ -484,6 +747,7 @@ export default function CardBuilder() {
                     <Textarea
                       placeholder="123 Main St, City, State"
                       value={cardData.address}
+                      onFocus={() => setLastFocusedField("address")}
                       onChange={(e) => handleInputChange("address", e.target.value)}
                       className="border-gray-200 resize-none h-14 text-sm py-1.5"
                     />
@@ -495,6 +759,7 @@ export default function CardBuilder() {
                     <Input
                       placeholder="Sorigin Group"
                       value={cardData.officeName}
+                      onFocus={() => setLastFocusedField("officeName")}
                       onChange={(e) => handleInputChange("officeName", e.target.value)}
                       className="border-gray-200 h-8 text-sm"
                     />
@@ -506,23 +771,34 @@ export default function CardBuilder() {
                     <Textarea
                       placeholder="Office details or company slogan"
                       value={cardData.officeDetails}
+                      onFocus={() => setLastFocusedField("officeDetails")}
                       onChange={(e) => handleInputChange("officeDetails", e.target.value)}
                       className="border-gray-200 resize-none h-14 text-sm py-1.5"
                     />
                   </div>
 
-                  {/* AI Suggestions Button */}
-                  <Button
-                    onClick={handleGenerateSuggestions}
-                    disabled={bioMutation.isPending || taglineMutation.isPending}
-                    className="w-full bg-teal-600 hover:bg-teal-700 text-white gap-2 h-9 text-xs"
-                  >
-                    <Sparkles size={14} />
-                    {bioMutation.isPending ? "Generating..." : "Generate AI Suggestions"}
-                  </Button>
+                  {/* AI clean / Suggestions actions */}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      onClick={handleAICleanData}
+                      disabled={isCleaning}
+                      className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5 h-9 text-xs"
+                    >
+                      {isCleaning ? <Loader2 size={12} className="animate-spin" /> : <Sparkle size={12} />}
+                      AI Clean Data
+                    </Button>
+                    <Button
+                      onClick={handleGenerateSuggestions}
+                      disabled={bioMutation.isPending || taglineMutation.isPending}
+                      className="flex-1 bg-teal-600 hover:bg-teal-700 text-white gap-1.5 h-9 text-xs"
+                    >
+                      <Sparkles size={12} />
+                      AI Ideas
+                    </Button>
+                  </div>
                 </TabsContent>
 
-                {/* Social Links Tab */}
+                {/* Social links tab */}
                 <TabsContent value="social" className="space-y-3 mt-3 max-h-[45vh] overflow-y-auto pr-1">
                   {Object.entries(cardData.social).map(([platform, value]) => (
                     <div key={platform} className="space-y-1">
@@ -530,6 +806,7 @@ export default function CardBuilder() {
                       <Input
                         placeholder={`Your ${platform} URL or handle`}
                         value={value}
+                        onFocus={() => setLastFocusedField(`social.${platform}`)}
                         onChange={(e) => handleInputChange(`social.${platform}`, e.target.value)}
                         className="border-gray-200 h-8 text-sm"
                       />
@@ -537,7 +814,7 @@ export default function CardBuilder() {
                   ))}
                 </TabsContent>
 
-                {/* Brand Assets Tab */}
+                {/* Brand Assets */}
                 <TabsContent value="brand" className="mt-3">
                   <BrandAssets
                     onBrandUpdate={handleBrandUpdate}
@@ -547,7 +824,7 @@ export default function CardBuilder() {
                 </TabsContent>
               </Tabs>
 
-              {/* Card Layout Dropdown (Clean, Portal-Based) */}
+              {/* Layout selections */}
               <div className="pt-3 border-t border-gray-200 space-y-2">
                 <label className="text-xs font-bold text-gray-700 block">Card Layout Template</label>
                 <Select
@@ -560,12 +837,13 @@ export default function CardBuilder() {
                   <SelectContent className="bg-white border shadow-md">
                     <SelectItem value="horizontal-no-photo">Horizontal (No Photo)</SelectItem>
                     <SelectItem value="horizontal-with-photo">Horizontal (With Photo)</SelectItem>
-                    <SelectItem value="vertical">Vertical (3:4)</SelectItem>
+                    <SelectItem value="vertical-no-photo">Vertical (No Photo)</SelectItem>
+                    <SelectItem value="vertical-with-photo">Vertical (With Photo)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Save & Share Card Action (Exposes public mobile page links) */}
+              {/* Save / Share Action */}
               <Button
                 onClick={handleSaveCard}
                 disabled={isSaving}
@@ -577,21 +855,21 @@ export default function CardBuilder() {
             </Card>
           </div>
 
-          {/* Preview Section - Right Column */}
+          {/* Right Preview Column */}
           <div className="lg:col-span-2 space-y-4">
-            {/* AI suggestions dialog box */}
+            
+            {/* AI suggestions container */}
             {showSuggestions && (
               <Card className="p-4 bg-teal-50 border border-teal-100 rounded-xl space-y-3">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-teal-800 flex items-center gap-1">
                     <Sparkles size={16} />
-                    AI Suggestions
+                    AI suggestions
                   </h3>
                   <Button variant="ghost" size="sm" onClick={() => setShowSuggestions(false)} className="text-xs text-gray-500 h-6">
                     Close
                   </Button>
                 </div>
-                
                 {taglineSuggestions.length > 0 && (
                   <div className="space-y-1">
                     <span className="text-[10px] uppercase tracking-wider text-teal-700 font-bold">Office Taglines</span>
@@ -600,7 +878,7 @@ export default function CardBuilder() {
                         <button
                           key={idx}
                           onClick={() => handleInputChange("officeDetails", t)}
-                          className="bg-white hover:bg-teal-100 text-teal-900 border border-teal-200 text-xs px-2 py-1 rounded-lg text-left"
+                          className="bg-white hover:bg-teal-100 text-teal-900 border border-teal-200 text-xs px-2.5 py-1 rounded-lg text-left shadow-sm"
                         >
                           {t}
                         </button>
@@ -619,12 +897,120 @@ export default function CardBuilder() {
             />
           </div>
         </div>
+
+        {/* Dashboard table display of uploaded rows */}
+        {dashboardRows.length > 0 && (
+          <Card className="p-6 shadow-md bg-white border border-gray-100 rounded-2xl overflow-x-auto space-y-4">
+            <div className="flex justify-between items-center flex-wrap gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Candidate Records ({dashboardRows.length})</h2>
+                <p className="text-xs text-gray-500">Check boxes to batch generate (up to 10), or click the row actions to edit a card.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleBatchDownloadZIP}
+                  disabled={isZipping || checkedCandidateIndexes.length === 0}
+                  className="bg-teal-700 hover:bg-teal-800 text-white gap-2 text-xs font-semibold px-4 h-9 shadow-sm"
+                >
+                  {isZipping ? (
+                    <>
+                      <Loader2 className="animate-spin" size={14} />
+                      Zipping {zipProgress}%
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      Batch Generate ZIP ({checkedCandidateIndexes.length})
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Table>
+              <TableHeader className="bg-gray-50">
+                <TableRow>
+                  <TableHead className="w-[50px] text-center">Batch</TableHead>
+                  <TableHead>Candidate Name</TableHead>
+                  <TableHead>Current Designation</TableHead>
+                  <TableHead>Current Company</TableHead>
+                  <TableHead>Email ID</TableHead>
+                  <TableHead>Mobile No.</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dashboardRows.map((row, idx) => {
+                  const nameVal = row["Candidate Name"] || row["Name"] || "Record " + (idx + 1);
+                  const desVal = row["Current Designation"] || row["Designation"] || "Data Missing";
+                  const compVal = row["Current Company"] || row["Company"] || "Data Missing";
+                  const emailVal = row["Email ID"] || row["Email"] || "Data Missing";
+                  const phoneVal = row["Mobile No."] || row["Phone"] || "Data Missing";
+
+                  const isSelected = selectedRowIndex === idx;
+
+                  return (
+                    <TableRow
+                      key={idx}
+                      className={`hover:bg-teal-50/50 transition-colors cursor-pointer ${
+                        isSelected ? "bg-teal-50/70 border-l-4 border-l-teal-600" : ""
+                      }`}
+                      onClick={() => selectCandidateRow(row, idx)}
+                    >
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={checkedCandidateIndexes.includes(idx)}
+                          onChange={() => handleToggleCandidate(idx)}
+                          className="w-4 h-4 rounded text-teal-600 accent-teal-600 focus:ring-teal-500 cursor-pointer"
+                        />
+                      </TableCell>
+                      <TableCell className={`font-bold ${nameVal === "Data Missing" ? "text-red-500 italic" : "text-gray-900"}`}>
+                        {nameVal}
+                      </TableCell>
+                      <TableCell className={`font-semibold ${desVal === "Data Missing" ? "text-red-500 italic" : "text-gray-700"}`}>
+                        {desVal}
+                      </TableCell>
+                      <TableCell className={`text-sm ${compVal === "Data Missing" ? "text-red-500 italic" : "text-gray-600"}`}>
+                        {compVal}
+                      </TableCell>
+                      <TableCell className={`text-xs font-mono ${emailVal === "Data Missing" ? "text-red-500 italic" : "text-gray-500"}`}>
+                        {emailVal}
+                      </TableCell>
+                      <TableCell className={`text-xs font-mono ${phoneVal === "Data Missing" ? "text-red-500 italic" : "text-gray-500"}`}>
+                        {phoneVal}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          className={`text-[10px] font-bold py-1 h-7 rounded-lg ${
+                            isSelected ? "bg-teal-600 text-white" : "border-teal-200 text-teal-700 bg-white"
+                          }`}
+                        >
+                          {isSelected ? (
+                            <>
+                              <ClipboardCheck size={12} className="mr-1" />
+                              Editing
+                            </>
+                          ) : (
+                            "Edit Card"
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
       </div>
 
-      {/* AI Settings Dialog */}
+      {/* AI Settings */}
       {aiSettingsOpen && <AISettings open={aiSettingsOpen} onOpenChange={setAiSettingsOpen} />}
 
-      {/* Share / Save Modal */}
+      {/* Share dialog modal */}
       {shareModalOpen && (
         <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
           <DialogContent className="max-w-md bg-white p-6 rounded-2xl shadow-xl border">
