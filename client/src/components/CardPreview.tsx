@@ -15,6 +15,7 @@ interface CardData {
   address: string;
   officeName: string;
   officeDetails: string;
+  bio?: string;
   social: {
     linkedin: string;
     twitter: string;
@@ -33,6 +34,17 @@ interface CardData {
   };
 }
 
+interface TextBox {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  bold: boolean;
+  italic: boolean;
+}
+
 interface CardPreviewProps {
   cardData: CardData;
   layoutType: "horizontal-no-photo" | "horizontal-with-photo" | "vertical-no-photo" | "vertical-with-photo";
@@ -40,6 +52,8 @@ interface CardPreviewProps {
   onOffsetsChange?: (offsets: Record<string, { x: number; y: number; scale?: number; fontSize?: number }>) => void;
   isPublicView?: boolean;
   cardId?: number;
+  textBoxes?: TextBox[];
+  onTextBoxMove?: (id: string, x: number, y: number) => void;
 }
 
 // ── SVG path data for icons (all 24×24 viewBox) ──────────────────────────────
@@ -114,7 +128,9 @@ export default function CardPreview({
   savedOffsets,
   onOffsetsChange,
   isPublicView = false,
-  cardId
+  cardId,
+  textBoxes = [],
+  onTextBoxMove,
 }: CardPreviewProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -124,6 +140,13 @@ export default function CardPreview({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [resizingItem, setResizingItem] = useState<string | null>(null);
   const [resizeStart, setResizeStart] = useState({ clientX: 0, scale: 1.0 });
+  // Track which text box is being dragged separately
+  const [draggedTextBoxId, setDraggedTextBoxId] = useState<string | null>(null);
+  const [tbDragStart, setTbDragStart] = useState({ x: 0, y: 0, ox: 0, oy: 0 });
+  const [localTextBoxes, setLocalTextBoxes] = useState<TextBox[]>(textBoxes);
+
+  // Sync external textBoxes prop into local state
+  useEffect(() => { setLocalTextBoxes(textBoxes); }, [textBoxes]);
 
   const defaultOffsets: Record<string, { x: number; y: number; scale?: number; fontSize?: number }> = {
     name: { x: 0, y: 0, fontSize: layoutType.startsWith("vertical") ? 32 : 44 },
@@ -168,6 +191,19 @@ export default function CardPreview({
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    // Text box drag
+    if (draggedTextBoxId) {
+      const rect = cardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const svgW = layoutType.startsWith("vertical") ? 514 : 800;
+      const svgH = layoutType.startsWith("vertical") ? 760 : 457;
+      const scaleX = svgW / rect.width;
+      const scaleY = svgH / rect.height;
+      const nx = tbDragStart.ox + (e.clientX - tbDragStart.x) * scaleX;
+      const ny = tbDragStart.oy + (e.clientY - tbDragStart.y) * scaleY;
+      setLocalTextBoxes(prev => prev.map(tb => tb.id === draggedTextBoxId ? { ...tb, x: Math.max(0, nx), y: Math.max(10, ny) } : tb));
+      return;
+    }
     if (resizingItem && editorMode) {
       e.preventDefault();
       const dx = e.clientX - resizeStart.clientX;
@@ -179,7 +215,7 @@ export default function CardPreview({
     const rect = cardRef.current?.getBoundingClientRect();
     if (!rect) return;
     const svgW = layoutType.startsWith("vertical") ? 514 : 800;
-    const svgH = layoutType.startsWith("vertical") ? 900 : 457;
+    const svgH = layoutType.startsWith("vertical") ? 760 : 457;
     const scaleX = svgW / rect.width;
     const scaleY = svgH / rect.height;
     const dx = (e.clientX - dragStart.x) * scaleX;
@@ -189,7 +225,16 @@ export default function CardPreview({
     setDragStart({ x: e.clientX, y: e.clientY });
   };
 
-  const handleMouseUp = () => { setDraggedItem(null); setResizingItem(null); };
+  const handleMouseUp = () => {
+    if (draggedTextBoxId) {
+      // Notify parent of final position
+      const moved = localTextBoxes.find(tb => tb.id === draggedTextBoxId);
+      if (moved && onTextBoxMove) onTextBoxMove(moved.id, moved.x, moved.y);
+      setDraggedTextBoxId(null);
+    }
+    setDraggedItem(null);
+    setResizingItem(null);
+  };
 
   const brandColors = cardData.brandColors || { primary: "#047857", secondary: "#0d9488" };
 
@@ -409,6 +454,36 @@ export default function CardPreview({
     </defs>
   );
 
+  // ── Render text boxes as draggable SVG text elements ─────────────────────────
+  const renderTextBoxes = () => localTextBoxes.map(tb => (
+    <g key={tb.id}
+      style={{ cursor: editorMode ? "move" : "default" }}
+      onMouseDown={(e) => {
+        if (!editorMode) return;
+        e.preventDefault(); e.stopPropagation();
+        setDraggedTextBoxId(tb.id);
+        setTbDragStart({ x: e.clientX, y: e.clientY, ox: tb.x, oy: tb.y });
+      }}
+    >
+      <text
+        x={tb.x} y={tb.y}
+        fontSize={tb.fontSize}
+        fill={tb.color}
+        fontWeight={tb.bold ? "700" : "400"}
+        fontStyle={tb.italic ? "italic" : "normal"}
+        className="fc-body"
+      >{tb.text}</text>
+      {editorMode && (
+        <rect
+          x={tb.x - 2} y={tb.y - tb.fontSize - 2}
+          width={tb.text.length * tb.fontSize * 0.6 + 8}
+          height={tb.fontSize + 8}
+          rx="3" className="drag-outline"
+        />
+      )}
+    </g>
+  ));
+
   // ── Multi-line text helper (SVG tspan) ───────────────────────────────────────
   const multiline = (text: string, x: number, y: number, maxChars: number, lineHeight: number, style: object) => {
     const words = (text || "").split(/\s+/);
@@ -472,11 +547,14 @@ export default function CardPreview({
         {editorMode && <rect x="44" y="55" width="460" height="85" rx="6" className="drag-outline" />}
       </g>
 
-      {/* ── Designation + Office ── */}
+      {/* ── Designation + Office + Bio (optional) ── */}
       <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
         <text x="50" y="150" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 45) || "Head of Marketing"}</text>
         <text x="50" y="170" fontSize={offsets.designation?.fontSize || 15} fontWeight="500" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 40) || "Company Name"}</text>
-        {editorMode && <rect x="44" y="136" width="440" height="44" rx="6" className="drag-outline" />}
+        {cardData.bio && cardData.bio.trim() && (
+          <text x="50" y="190" fontSize={10} fontWeight="400" fill="#6b7280" fontStyle="italic" className="fc-body" opacity="0.85">{truncate(cardData.bio, 80)}</text>
+        )}
+        {editorMode && <rect x="44" y="136" width="440" height="60" rx="6" className="drag-outline" />}
       </g>
 
       {/* ── Contact Row: Phone | WhatsApp | Email ── */}
@@ -551,6 +629,8 @@ export default function CardPreview({
         </a>
         {editorMode && <><rect x="635" y="190" width="128" height="157" rx="6" className="drag-outline" />{resizeHandle("qr", 763, 347)}</>}
       </g>
+      {/* ── Free-form text boxes (draggable, optional) ── */}
+      {renderTextBoxes()}
     </svg>
   );
 
@@ -679,6 +759,8 @@ export default function CardPreview({
         <line x1="673" y1="376" x2="673" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={702} cy={390} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" />
       </g>
+      {/* ── Free-form text boxes (draggable, optional) ── */}
+      {renderTextBoxes()}
     </svg>
   );
 
@@ -822,6 +904,8 @@ export default function CardPreview({
           <line x1="378" y1={hasPhoto ? 685 : 710} x2="378" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
           <SocialIcon cx={430} cy={hasPhoto ? 700 : 725} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="FACEBOOK" />
         </g>
+        {/* ── Free-form text boxes (draggable, optional) ── */}
+        {renderTextBoxes()}
       </svg>
     );
   };
@@ -861,26 +945,29 @@ export default function CardPreview({
         </div>
       </div>
 
-      {/* Sizing Sliders */}
-      {editorMode && !isPublicView && (
+      {/* Font & Size Controls — always visible, no editor-mode gate */}
+      {!isPublicView && (
         <div className="w-full bg-white border border-teal-100 p-4 rounded-xl shadow-sm space-y-4">
           <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1">
             <Settings size={14} className="text-teal-600" />
-            ELEMENT SIZING CONTROLS
+            FONT &amp; SIZE CONTROLS
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {[
-              { key: "name", label: "Name Font", prop: "fontSize" as const, min: 18, max: 64, def: layoutType.startsWith("vertical") ? 32 : 44 },
-              { key: "designation", label: "Title Font", prop: "fontSize" as const, min: 10, max: 24, def: 15 },
+              { key: "name", label: "Name Font Size", prop: "fontSize" as const, min: 18, max: 64, def: layoutType.startsWith("vertical") ? 32 : 44 },
+              { key: "designation", label: "Title Font Size", prop: "fontSize" as const, min: 10, max: 28, def: 15 },
               { key: "logo", label: "Logo Scale", prop: "scale" as const, min: 50, max: 200, def: 100 },
               { key: "qr", label: "QR Scale", prop: "scale" as const, min: 50, max: 180, def: 100 },
+              { key: "contacts", label: "Contacts Scale", prop: "scale" as const, min: 50, max: 150, def: 100 },
+              { key: "address", label: "Address Scale", prop: "scale" as const, min: 50, max: 150, def: 100 },
+              { key: "socials", label: "Social Icons Scale", prop: "scale" as const, min: 50, max: 150, def: 100 },
             ].map(({ key, label, prop, min, max, def }) => {
               const rawVal = prop === "scale" ? Math.round((offsets[key]?.scale || 1.0) * 100) : (offsets[key]?.fontSize || def);
               const displayVal = prop === "scale" ? `${rawVal}%` : `${rawVal}px`;
               return (
                 <div key={key} className="space-y-1">
                   <div className="flex justify-between text-[11px] font-bold text-gray-600">
-                    <span>{label}</span><span>{displayVal}</span>
+                    <span>{label}</span><span className="text-teal-600">{displayVal}</span>
                   </div>
                   <input type="range" min={min} max={max} value={rawVal}
                     onChange={(e) => {
@@ -891,10 +978,10 @@ export default function CardPreview({
                 </div>
               );
             })}
-            {layoutType !== "horizontal-no-photo" && layoutType !== "vertical-no-photo" && (
+            {(layoutType === "horizontal-with-photo" || layoutType === "vertical-with-photo") && (
               <div className="space-y-1">
                 <div className="flex justify-between text-[11px] font-bold text-gray-600">
-                  <span>Photo Scale</span><span>{Math.round((offsets.photo?.scale || 1.0) * 100)}%</span>
+                  <span>Photo Scale</span><span className="text-teal-600">{Math.round((offsets.photo?.scale || 1.0) * 100)}%</span>
                 </div>
                 <input type="range" min={50} max={180} value={Math.round((offsets.photo?.scale || 1.0) * 100)}
                   onChange={(e) => handleSliderChange("photo", "scale", parseFloat((parseInt(e.target.value) / 100).toFixed(2)))}
@@ -902,6 +989,7 @@ export default function CardPreview({
               </div>
             )}
           </div>
+          <p className="text-[10px] text-gray-400 mt-1">💡 Click <strong>Edit Layout</strong> above to drag elements around the card. Sliders work at all times.</p>
         </div>
       )}
 

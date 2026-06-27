@@ -1207,6 +1207,8 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
               layoutType={layoutType}
               onOffsetsChange={(newOffsets) => setOffsets(newOffsets)}
               cardId={savedCardId || undefined}
+              textBoxes={textBoxes}
+              onTextBoxMove={(id, x, y) => setTextBoxes(prev => prev.map(tb => tb.id === id ? { ...tb, x, y } : tb))}
             />
           </div>
         </div>
