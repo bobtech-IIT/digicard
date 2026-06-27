@@ -608,7 +608,7 @@ export default function CardPreview({
         {/* Designation */}
         <text x="50" y="150" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 45) || "Head of Marketing"}</text>
         {/* Thin separator line between Designation and Office Name */}
-        <line x1="50" y1="158" x2="240" y2="158" stroke="#e5e7eb" strokeWidth="0.8" strokeDasharray="3 2" />
+
         {/* Office Name */}
         <text x="50" y="174" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 40) || "Company Name"}</text>
         {cardData.bio && cardData.bio.trim() && (
@@ -752,7 +752,7 @@ export default function CardPreview({
         {/* Designation */}
         <text x="310" y="133" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 35) || "Head of Marketing"}</text>
         {/* Thin separator line between Designation and Office Name */}
-        <line x1="310" y1="141" x2="500" y2="141" stroke="#e5e7eb" strokeWidth="0.8" strokeDasharray="3 2" />
+
         {/* Office Name */}
         <text x="310" y="157" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
         {editorMode && <rect x="304" y="118" width="340" height="48" rx="6" className="drag-outline" />}
@@ -892,7 +892,7 @@ export default function CardPreview({
           {/* Designation */}
           <text x="38" y={hasPhoto ? 225 : 255} fontSize={offsets.designation?.fontSize || 14} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 32) || "Head of Marketing"}</text>
           {/* Thin separator line */}
-          <line x1="38" y1={hasPhoto ? 234 : 264} x2="220" y2={hasPhoto ? 234 : 264} stroke="#e5e7eb" strokeWidth="0.8" strokeDasharray="3 2" />
+
           {/* Office Name */}
           <text x="38" y={hasPhoto ? 250 : 280} fontSize={(offsets.designation?.fontSize || 14) - 1} fontWeight="600" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
           {editorMode && <rect x="32" y={hasPhoto ? 210 : 240} width="440" height="50" rx="6" className="drag-outline" />}
