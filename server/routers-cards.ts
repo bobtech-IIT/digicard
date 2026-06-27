@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
   getCardsByUserId,
   getCardById,
@@ -28,6 +28,10 @@ export const cardRouter = router({
     return getCardById(input.id);
   }),
 
+  getPublic: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+    return getCardById(input.id);
+  }),
+
   create: protectedProcedure
     .input(
       z.object({
@@ -44,11 +48,12 @@ export const cardRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await createCard({
+      const res = await createCard({
         userId: ctx.user.id,
         ...input,
       });
-      return { success: true };
+      const insertId = (res as any)?.insertId || (res as any)?.[0]?.insertId;
+      return { success: true, id: insertId };
     }),
 
   update: protectedProcedure

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, Trash2, Download, Eye, Loader2 } from "lucide-react";
@@ -32,8 +31,28 @@ interface BatchCandidate {
     github: string;
     tiktok: string;
     whatsapp: string;
+    website: string;
   };
 }
+
+const EXPECTED_HEADERS = {
+  name: ["name", "fullname", "full name", "employee name", "candidate name"],
+  designation: ["designation", "role", "title", "jobtitle", "job title"],
+  phone: ["phone", "mobile", "contact", "phone number", "mobile number"],
+  email: ["email", "emailaddress", "email address"],
+  address: ["address", "office address", "location"],
+  officeName: ["officename", "office name", "company", "company name"],
+  officeDetails: ["officedetails", "office details", "tagline", "company details"],
+  website: ["website", "site", "webpage", "weburl", "web url", "url"],
+  linkedin: ["linkedin", "linkedin url", "linkedin handle"],
+  twitter: ["twitter", "x", "twitter handle", "x handle"],
+  instagram: ["instagram", "insta", "instagram handle"],
+  facebook: ["facebook", "fb", "facebook handle"],
+  youtube: ["youtube", "yt", "youtube handle"],
+  github: ["github", "github handle"],
+  tiktok: ["tiktok", "tiktok handle"],
+  whatsapp: ["whatsapp", "whatsapp number"]
+};
 
 export default function BatchProcessor() {
   const [, navigate] = useLocation();
@@ -43,6 +62,40 @@ export default function BatchProcessor() {
   const [previewCandidate, setPreviewCandidate] = useState<BatchCandidate | null>(null);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
+
+  // Common parser helper mapping case-insensitive headers and warning if missing
+  const parseRowData = (headers: string[], row: any, idIndex: number): BatchCandidate => {
+    const getColumnValue = (fieldsList: string[]): string => {
+      // Find matching header case-insensitively
+      const matchedHeader = headers.find(h => fieldsList.includes(h.toLowerCase()));
+      if (matchedHeader) {
+        return String(row[matchedHeader] || "").trim();
+      }
+      return "Data Missing";
+    };
+
+    return {
+      id: `candidate-${idIndex}`,
+      name: getColumnValue(EXPECTED_HEADERS.name),
+      designation: getColumnValue(EXPECTED_HEADERS.designation),
+      phone: getColumnValue(EXPECTED_HEADERS.phone),
+      email: getColumnValue(EXPECTED_HEADERS.email),
+      address: getColumnValue(EXPECTED_HEADERS.address),
+      officeName: getColumnValue(EXPECTED_HEADERS.officeName),
+      officeDetails: getColumnValue(EXPECTED_HEADERS.officeDetails),
+      social: {
+        linkedin: getColumnValue(EXPECTED_HEADERS.linkedin),
+        twitter: getColumnValue(EXPECTED_HEADERS.twitter),
+        instagram: getColumnValue(EXPECTED_HEADERS.instagram),
+        facebook: getColumnValue(EXPECTED_HEADERS.facebook),
+        youtube: getColumnValue(EXPECTED_HEADERS.youtube),
+        github: getColumnValue(EXPECTED_HEADERS.github),
+        tiktok: getColumnValue(EXPECTED_HEADERS.tiktok),
+        whatsapp: getColumnValue(EXPECTED_HEADERS.whatsapp),
+        website: getColumnValue(EXPECTED_HEADERS.website),
+      }
+    };
+  };
 
   // Handle CSV/Excel parse
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,41 +115,20 @@ export default function BatchProcessor() {
             return;
           }
 
-          // Parse headers (handling potential quotes/spaces)
+          // Parse headers
           const headers = lines[0].split(",").map((h) => h.replace(/^["']|["']$/g, "").trim());
 
           const newCandidates: BatchCandidate[] = [];
           for (let i = 1; i < Math.min(lines.length, 11); i++) {
             const line = lines[i];
-            // Simple CSV line parser split by comma but respecting quoted commas if needed
-            // For now, simple split is fine as template is simple
             const values = line.split(",").map((v) => v.replace(/^["']|["']$/g, "").trim());
             
-            const getVal = (headerName: string) => {
-              const idx = headers.indexOf(headerName);
-              return idx !== -1 ? values[idx] || "" : "";
-            };
+            const rowObject: any = {};
+            headers.forEach((h, idx) => {
+              rowObject[h] = values[idx] || "";
+            });
 
-            const candidate: BatchCandidate = {
-              id: `candidate-${i}`,
-              name: getVal("name"),
-              designation: getVal("designation"),
-              phone: getVal("phone"),
-              email: getVal("email"),
-              address: getVal("address"),
-              officeName: getVal("officeName"),
-              officeDetails: getVal("officeDetails"),
-              social: {
-                linkedin: getVal("linkedin"),
-                twitter: getVal("twitter"),
-                instagram: getVal("instagram"),
-                facebook: getVal("facebook"),
-                youtube: getVal("youtube"),
-                github: getVal("github"),
-                tiktok: getVal("tiktok"),
-                whatsapp: getVal("whatsapp"),
-              },
-            };
+            const candidate = parseRowData(headers, rowObject, i);
             newCandidates.push(candidate);
           }
 
@@ -117,26 +149,16 @@ export default function BatchProcessor() {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
 
-          const newCandidates: BatchCandidate[] = jsonData.slice(0, 10).map((row, idx) => ({
-            id: `candidate-${idx + 1}`,
-            name: row.name || "",
-            designation: row.designation || "",
-            phone: row.phone || "",
-            email: row.email || "",
-            address: row.address || "",
-            officeName: row.officeName || "",
-            officeDetails: row.officeDetails || "",
-            social: {
-              linkedin: row.linkedin || "",
-              twitter: row.twitter || "",
-              instagram: row.instagram || "",
-              facebook: row.facebook || "",
-              youtube: row.youtube || "",
-              github: row.github || "",
-              tiktok: row.tiktok || "",
-              whatsapp: row.whatsapp || "",
-            },
-          }));
+          if (jsonData.length === 0) {
+            toast.error("Excel file has no data rows");
+            return;
+          }
+
+          const headers = Object.keys(jsonData[0]);
+
+          const newCandidates: BatchCandidate[] = jsonData.slice(0, 10).map((row, idx) => {
+            return parseRowData(headers, row, idx + 1);
+          });
 
           setCandidates(newCandidates);
           toast.success(`Loaded ${newCandidates.length} candidates from Excel`);
@@ -182,6 +204,7 @@ export default function BatchProcessor() {
         address: "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune - 411089, Maharashtra, India",
         officeName: "Sorigin Group",
         officeDetails: "Pune, Maharashtra, India",
+        website: "https://www.sorigin.in",
         linkedin: "https://linkedin.com/in/babu",
         twitter: "https://twitter.com/babu",
         instagram: "https://instagram.com/babu",
@@ -402,10 +425,10 @@ export default function BatchProcessor() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-bold text-gray-900">{c.name}</TableCell>
-                    <TableCell className="font-semibold text-gray-700">{c.designation}</TableCell>
-                    <TableCell className="text-sm font-mono text-gray-600">{c.email}</TableCell>
-                    <TableCell className="text-sm font-mono text-gray-600">{c.phone}</TableCell>
+                    <TableCell className={`font-bold ${c.name === "Data Missing" ? "text-red-500 italic" : "text-gray-900"}`}>{c.name}</TableCell>
+                    <TableCell className={`font-semibold ${c.designation === "Data Missing" ? "text-red-500 italic" : "text-gray-700"}`}>{c.designation}</TableCell>
+                    <TableCell className={`text-sm font-mono ${c.email === "Data Missing" ? "text-red-500 italic" : "text-gray-600"}`}>{c.email}</TableCell>
+                    <TableCell className={`text-sm font-mono ${c.phone === "Data Missing" ? "text-red-500 italic" : "text-gray-600"}`}>{c.phone}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button

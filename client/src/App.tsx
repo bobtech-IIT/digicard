@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import CardBuilder from "./pages/CardBuilder";
 import BatchProcessor from "./pages/BatchProcessor";
+import PublicCardView from "./pages/PublicCardView";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -15,6 +16,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/card-builder"} component={CardBuilder} />
       <Route path={"/batch-processor"} component={BatchProcessor} />
+      <Route path={"/card/:id"} component={PublicCardView} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
