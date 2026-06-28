@@ -667,8 +667,9 @@ export default function CardPreview({
       </>)}
 
       {/* ── Social icons row ── */}
+      {/* Divider line is FIXED — outside the scaledGroup so it doesn't scale */}
+      <line x1="50" y1="345" x2="740" y2="345" stroke="#e5e7eb" strokeWidth="1" />
       {scaledGroup("socials", <>
-        <line x1="50" y1="345" x2="740" y2="345" stroke="#e5e7eb" strokeWidth="1" />
         <SocialIcon cx={480} cy={388} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
         <line x1="510" y1="373" x2="510" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={540} cy={388} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" />
