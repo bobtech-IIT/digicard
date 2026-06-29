@@ -821,90 +821,49 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
     }
     setIsSaving(true);
     try {
-      // ── CRITICAL FIX: Never send base64 images to tRPC (Vercel 4.5MB limit) ──
-      // Images stay in localStorage only. Server receives only text metadata.
-      const socialLinksData = JSON.stringify({
-        social: cardData.social,
-        brandColors: cardData.brandColors,
-        offsets,
-        bio: cardData.bio,
-        themeId: cardData.themeId,
-        fontPairingId: cardData.fontPairingId,
-        customBg: cardData.customBg,
-        customTextColor: cardData.customTextColor,
-        telephone: cardData.telephone,
-        // NOTE: No images here — stored in localStorage below
-      });
-
-      const result = await saveMutation.mutateAsync({
-        name: cardData.name,
-        designation: cardData.designation,
-        phone: cardData.phone,
-        email: cardData.email,
-        address: cardData.address,
-        officeName: cardData.officeName,
-        officeDetails: cardData.officeDetails,
-        socialLinks: socialLinksData,
-        aspectRatio: layoutType.startsWith("vertical") ? "3:4" : "16:9"
-      });
-
-      if (result.success && result.id) {
-        // Store images in localStorage keyed by card ID
-        try {
-          if (cardData.headshot) {
-            localStorage.setItem(`glasscard_headshot_${result.id}`, cardData.headshot);
-          }
-          if (cardData.brandLogo) {
-            localStorage.setItem(`glasscard_logo_${result.id}`, cardData.brandLogo);
-          }
-        } catch {
-          // localStorage may be full — images won't persist but card saves fine
-        }
-        setSavedCardId(result.id);
-        
-        // Immediately sync saved details to candidate row in spreadsheet list
-        if (selectedRowIndex !== null) {
-          setDashboardRows((prev) => {
-            const updated = [...prev];
-            const row = { ...updated[selectedRowIndex] };
-            const headers = Object.keys(row);
-            
-            const setColVal = (expectedList: string[], value: string) => {
-              const match = headers.find(h => expectedList.includes(h.toLowerCase()));
-              if (match) {
-                row[match] = value;
-              }
-            };
-            
-            setColVal(EXPECTED_HEADERS.name, cardData.name);
-            setColVal(EXPECTED_HEADERS.designation, cardData.designation);
-            setColVal(EXPECTED_HEADERS.phone, cardData.phone);
-            setColVal(EXPECTED_HEADERS.email, cardData.email);
-            setColVal(EXPECTED_HEADERS.address, cardData.address);
-            setColVal(EXPECTED_HEADERS.officeName, cardData.officeName);
-            setColVal(EXPECTED_HEADERS.officeDetails, cardData.officeDetails);
-            
-            setColVal(EXPECTED_HEADERS.linkedin, cardData.social.linkedin);
-            setColVal(EXPECTED_HEADERS.twitter, cardData.social.twitter);
-            setColVal(EXPECTED_HEADERS.instagram, cardData.social.instagram);
-            setColVal(EXPECTED_HEADERS.facebook, cardData.social.facebook);
-            setColVal(EXPECTED_HEADERS.youtube, cardData.social.youtube);
-            setColVal(EXPECTED_HEADERS.github, cardData.social.github);
-            setColVal(EXPECTED_HEADERS.tiktok, cardData.social.tiktok);
-            setColVal(EXPECTED_HEADERS.whatsapp, cardData.social.whatsapp);
-            setColVal(EXPECTED_HEADERS.website, cardData.social.website);
-            setColVal(EXPECTED_HEADERS.telephone, cardData.telephone);
-            
-            updated[selectedRowIndex] = row;
-            return updated;
-          });
-        }
-
-        setShareModalOpen(true);
-        toast.success("Card saved successfully!");
-      } else {
-        toast.error("Failed to save card — server rejected request");
+      // Client-side session save: set savedCardId to unlock preview, copy, and QR options
+      setSavedCardId(999999);
+      
+      // Immediately sync saved details to candidate row in spreadsheet list
+      if (selectedRowIndex !== null) {
+        setDashboardRows((prev) => {
+          const updated = [...prev];
+          const row = { ...updated[selectedRowIndex] };
+          const headers = Object.keys(row);
+          
+          const setColVal = (expectedList: string[], value: string) => {
+            const match = headers.find(h => expectedList.includes(h.toLowerCase()));
+            if (match) {
+              row[match] = value;
+            }
+          };
+          
+          setColVal(EXPECTED_HEADERS.name, cardData.name);
+          setColVal(EXPECTED_HEADERS.designation, cardData.designation);
+          setColVal(EXPECTED_HEADERS.phone, cardData.phone);
+          setColVal(EXPECTED_HEADERS.email, cardData.email);
+          setColVal(EXPECTED_HEADERS.address, cardData.address);
+          setColVal(EXPECTED_HEADERS.officeName, cardData.officeName);
+          setColVal(EXPECTED_HEADERS.officeDetails, cardData.officeDetails);
+          
+          setColVal(EXPECTED_HEADERS.linkedin, cardData.social.linkedin);
+          setColVal(EXPECTED_HEADERS.twitter, cardData.social.twitter);
+          setColVal(EXPECTED_HEADERS.instagram, cardData.social.instagram);
+          setColVal(EXPECTED_HEADERS.facebook, cardData.social.facebook);
+          setColVal(EXPECTED_HEADERS.youtube, cardData.social.youtube);
+          setColVal(EXPECTED_HEADERS.github, cardData.social.github);
+          setColVal(EXPECTED_HEADERS.tiktok, cardData.social.tiktok);
+          setColVal(EXPECTED_HEADERS.whatsapp, cardData.social.whatsapp);
+          setColVal(EXPECTED_HEADERS.website, cardData.social.website);
+          setColVal(EXPECTED_HEADERS.telephone, cardData.telephone);
+          
+          updated[selectedRowIndex] = row;
+          return updated;
+        });
       }
+
+      setShareModalOpen(true);
+      toast.success("Card saved to current local session!");
     } catch (err) {
       console.error(err);
       toast.error(`Failed to save card: ${err instanceof Error ? err.message : String(err)}`);
@@ -914,7 +873,44 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
   };
 
   const getPublicShareURL = (): string => {
-    return savedCardId ? `${window.location.origin}/card/${savedCardId}` : "";
+    if (!savedCardId) return "";
+    
+    // Package all card builder state including layouts, texts, custom themes/colors, offsets, etc.
+    // We omit large raw base64 images from the URL parameter to prevent QR code size overflows.
+    const dataObj = {
+      name: cardData.name,
+      designation: cardData.designation,
+      phone: cardData.phone,
+      email: cardData.email,
+      address: cardData.address,
+      officeName: cardData.officeName,
+      officeDetails: cardData.officeDetails,
+      bio: cardData.bio,
+      social: cardData.social,
+      brandColors: cardData.brandColors,
+      themeId: cardData.themeId,
+      fontPairingId: cardData.fontPairingId,
+      customBg: cardData.customBg,
+      customTextColor: cardData.customTextColor,
+      telephone: cardData.telephone,
+      layoutType,
+      offsets,
+      textBoxes
+    };
+    
+    try {
+      const json = JSON.stringify(dataObj);
+      const utf8Bytes = new TextEncoder().encode(json);
+      let binary = "";
+      for (let i = 0; i < utf8Bytes.length; i++) {
+        binary += String.fromCharCode(utf8Bytes[i]);
+      }
+      const base64 = btoa(binary);
+      return `${window.location.origin}/card/local?data=${encodeURIComponent(base64)}`;
+    } catch (e) {
+      console.error("Failed to generate sharing URL:", e);
+      return "";
+    }
   };
 
   const handleCopyLink = () => {
@@ -1799,7 +1795,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                 className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-5 rounded-lg flex items-center justify-center gap-2 shadow-sm text-sm"
               >
                 <Save size={16} />
-                {isSaving ? "Saving Card..." : "Save & Share Card"}
+                {isSaving ? "Saving..." : "Save"}
               </Button>
             </Card>
           </div>

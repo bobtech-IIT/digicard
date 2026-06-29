@@ -13,14 +13,35 @@ import { convertSvgToPngDataUrl } from "@/lib/export-utils";
 
 export default function PublicCardView() {
   const [, params] = useRoute("/card/:id");
+
+  // Try to parse local card data from search parameters
+  let localCard: any = null;
+  const searchParams = new URLSearchParams(window.location.search);
+  const queryData = searchParams.get("data");
+  if (queryData) {
+    try {
+      const binary = atob(decodeURIComponent(queryData));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const json = new TextDecoder().decode(bytes);
+      localCard = JSON.parse(json);
+    } catch (e) {
+      console.error("Failed to parse query card data:", e);
+    }
+  }
+
   const cardId = parseInt(params?.id || "");
   
-  const { data: card, isLoading, error } = trpc.card.getPublic.useQuery(
+  const { data: serverCard, isLoading, error } = trpc.card.getPublic.useQuery(
     { id: cardId },
-    { enabled: !isNaN(cardId), retry: false }
+    { enabled: !isNaN(cardId) && !localCard, retry: false }
   );
 
-  if (isLoading) {
+  const card = localCard || serverCard;
+
+  if (isLoading && !card) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-teal-50 to-green-50 flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -31,7 +52,7 @@ export default function PublicCardView() {
     );
   }
 
-  if (error || !card) {
+  if ((error || !card) && !localCard) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-teal-50 to-green-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center glass-card shadow-lg">
@@ -56,6 +77,7 @@ export default function PublicCardView() {
     github: "",
     tiktok: "",
     whatsapp: "",
+    website: "",
   };
   let brandColors = {
     primary: "#047857",
@@ -68,28 +90,39 @@ export default function PublicCardView() {
   let customBg = "";
   let customTextColor = "";
 
-  try {
-    if (card.socialLinks) {
-      const parsed = JSON.parse(card.socialLinks);
-      if (parsed.social) social = parsed.social;
-      if (parsed.brandColors) brandColors = parsed.brandColors;
-      if (parsed.brandLogo) brandLogo = parsed.brandLogo;
-      if (parsed.offsets) offsets = parsed.offsets;
-      if (parsed.themeId) themeId = parsed.themeId;
-      if (parsed.fontPairingId) fontPairingId = parsed.fontPairingId;
-      if (parsed.customBg) customBg = parsed.customBg;
-      if (parsed.customTextColor) customTextColor = parsed.customTextColor;
-    }
-  } catch (e) {
-    // Fallback for raw legacy text
-    console.warn("Failed to parse socialLinks metadata JSON, falling back", e);
-    if (card.socialLinks) {
-      social.linkedin = card.socialLinks;
+  if (localCard) {
+    if (localCard.social) social = localCard.social;
+    if (localCard.brandColors) brandColors = localCard.brandColors;
+    if (localCard.brandLogo) brandLogo = localCard.brandLogo;
+    if (localCard.offsets) offsets = localCard.offsets;
+    if (localCard.themeId) themeId = localCard.themeId;
+    if (localCard.fontPairingId) fontPairingId = localCard.fontPairingId;
+    if (localCard.customBg) customBg = localCard.customBg;
+    if (localCard.customTextColor) customTextColor = localCard.customTextColor;
+  } else if (card) {
+    try {
+      if (card.socialLinks) {
+        const parsed = JSON.parse(card.socialLinks);
+        if (parsed.social) social = parsed.social;
+        if (parsed.brandColors) brandColors = parsed.brandColors;
+        if (parsed.brandLogo) brandLogo = parsed.brandLogo;
+        if (parsed.offsets) offsets = parsed.offsets;
+        if (parsed.themeId) themeId = parsed.themeId;
+        if (parsed.fontPairingId) fontPairingId = parsed.fontPairingId;
+        if (parsed.customBg) customBg = parsed.customBg;
+        if (parsed.customTextColor) customTextColor = parsed.customTextColor;
+      }
+    } catch (e) {
+      // Fallback for raw legacy text
+      console.warn("Failed to parse socialLinks metadata JSON, falling back", e);
+      if (card.socialLinks) {
+        social.linkedin = card.socialLinks;
+      }
     }
   }
 
   // Overriding public page layout to ALWAYS render in vertical format design for scanning
-  const layoutType = card.headshotUrl ? "vertical-with-photo" : "vertical-no-photo";
+  const layoutType = (card.headshotUrl || card.headshot) ? "vertical-with-photo" : "vertical-no-photo";
 
   // Generate standard VCF card download
   const handleSaveContact = () => {
@@ -177,7 +210,7 @@ export default function PublicCardView() {
         <div className="bg-white/40 backdrop-blur-md border border-white/20 p-4 rounded-3xl shadow-xl">
           <CardPreview
             cardData={{
-              headshot: card.headshotUrl || null,
+              headshot: card.headshot || card.headshotUrl || null,
               name: card.name,
               designation: card.designation || "",
               phone: card.phone || "",
