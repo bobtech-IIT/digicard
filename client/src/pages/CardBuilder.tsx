@@ -146,18 +146,33 @@ export default function CardBuilder() {
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
 
-  // Client-side OpenRouter API Key (BYOK)
+  // Client-side AI Settings (BYOK)
   const [openRouterKey, setOpenRouterKey] = useState("");
+  const [aiIsDefault, setAiIsDefault] = useState(true);
+  const [aiEndpoint, setAiEndpoint] = useState("https://openrouter.ai/api/v1");
+  const [aiModel, setAiModel] = useState("openrouter/free");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
-    const savedKey = localStorage.getItem("glasscard_openrouter_key") || "";
-    setOpenRouterKey(savedKey);
+    setOpenRouterKey(localStorage.getItem("glasscard_openrouter_key") || "");
+    const savedDefault = localStorage.getItem("glasscard_ai_is_default");
+    setAiIsDefault(savedDefault !== "false");
+    setAiEndpoint(localStorage.getItem("glasscard_ai_endpoint") || "https://openrouter.ai/api/v1");
+    setAiModel(localStorage.getItem("glasscard_ai_model") || "openrouter/free");
   }, []);
 
-  const handleSaveAPIKey = (key: string) => {
+  const handleSaveAISettings = (key: string, isDefault: boolean, endpoint: string, model: string) => {
     setOpenRouterKey(key);
+    setAiIsDefault(isDefault);
+    setAiEndpoint(endpoint);
+    setAiModel(model);
+
     localStorage.setItem("glasscard_openrouter_key", key);
-    toast.success("OpenRouter API key saved locally!");
+    localStorage.setItem("glasscard_ai_is_default", String(isDefault));
+    localStorage.setItem("glasscard_ai_endpoint", endpoint);
+    localStorage.setItem("glasscard_ai_model", model);
+
+    toast.success("AI BYOK configuration saved!");
   };
 
   const bioMutation = trpc.aiGeneration.generateBios.useMutation();
@@ -165,10 +180,21 @@ export default function CardBuilder() {
   const cleanMutation = trpc.aiGeneration.cleanCardData.useMutation();
   const saveMutation = trpc.card.create.useMutation();
 
-  // ── Direct browser→OpenRouter AI call (bypasses server, no serverless issues) ───────────
+  // ── Direct browser→LLM BYOK call (bypasses server, no serverless issues) ───────────
   const callOpenRouterDirect = async (prompt: string): Promise<string> => {
-    if (!openRouterKey) throw new Error("No API key");
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    if (!openRouterKey) throw new Error("No API key configured. Click Settings to set up your BYOK credentials.");
+    
+    // Resolve endpoint and model based on defaults or custom inputs
+    const endpoint = aiIsDefault ? "https://openrouter.ai/api/v1" : aiEndpoint;
+    const model = aiIsDefault ? "openrouter/free" : aiModel;
+    
+    // Ensure endpoint URL has /chat/completions suffix if not present
+    let url = endpoint.trim();
+    if (!url.endsWith("/chat/completions")) {
+      url = url.replace(/\/+$/, "") + "/chat/completions";
+    }
+
+    const res = await fetch(url, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${openRouterKey}`,
@@ -177,14 +203,14 @@ export default function CardBuilder() {
         "X-Title": "GlassCard AI"
       },
       body: JSON.stringify({
-        model: "openrouter/free",
+        model: model,
         messages: [{ role: "user", content: prompt }],
         max_tokens: 700
       })
     });
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`OpenRouter ${res.status}: ${errText.slice(0, 200)}`);
+      throw new Error(`LLM Error ${res.status}: ${errText.slice(0, 200)}`);
     }
     const data = await res.json();
     return data.choices?.[0]?.message?.content || "";
@@ -234,7 +260,6 @@ export default function CardBuilder() {
     calculatedKelvin < 4500 ? "Soft Warm" :
     calculatedKelvin < 6500 ? "Daylight" :
     calculatedKelvin < 8000 ? "Cool White" : "Cool Blue";
-
   const handleColorPadClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -242,6 +267,23 @@ export default function CardBuilder() {
     setVibgyorX(x);
     setVibgyorY(y);
   };
+
+
+  // Local temporary sub-form states for AI settings modal
+  const [modalKey, setModalKey] = useState(openRouterKey);
+  const [modalDefault, setModalDefault] = useState(aiIsDefault);
+  const [modalEndpoint, setModalEndpoint] = useState(aiEndpoint);
+  const [modalModel, setModalModel] = useState(aiModel);
+
+  useEffect(() => {
+    if (isSettingsOpen) {
+      setModalKey(openRouterKey);
+      setModalDefault(aiIsDefault);
+      setModalEndpoint(aiEndpoint);
+      setModalModel(aiModel);
+    }
+  }, [isSettingsOpen, openRouterKey, aiIsDefault, aiEndpoint, aiModel]);
+
 
 
   const handleHeadshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -940,21 +982,26 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
             <p className="text-gray-600">Create beautiful, fully clickable digital visiting cards with AI-assisted layout scaling</p>
           </div>
           
-          {/* Universal OpenRouter API Key Input widget */}
-          <div className="flex items-center gap-2 bg-white/90 border border-teal-200 p-2 rounded-xl shadow-sm">
-            <Key size={16} className="text-teal-600 shrink-0" />
-            <Input
-              type="password"
-              placeholder="Enter OpenRouter API Key..."
-              value={openRouterKey}
-              onChange={(e) => handleSaveAPIKey(e.target.value)}
-              className="h-8 text-xs border-0 bg-transparent w-48 focus-visible:ring-0 focus-visible:ring-offset-0"
-            />
-            {openRouterKey ? (
-              <span className="text-[10px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-lg border border-green-200">Active</span>
-            ) : (
-              <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">No Key</span>
-            )}
+          {/* Settings Button */}
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setIsSettingsOpen(true)}
+              className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl px-4 py-2 flex items-center gap-2 text-xs font-bold shadow-sm transition-all duration-200"
+            >
+              <Key size={14} className="text-teal-600" />
+              AI Settings
+              {openRouterKey ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-lg border border-green-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  No Key
+                </span>
+              )}
+            </Button>
           </div>
         </div>
 
@@ -2016,6 +2063,135 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
           </div>
         )}
       </div>
+
+      {/* AI Settings Modal */}
+      {isSettingsOpen && (
+        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+          <DialogContent className="max-w-md bg-white p-5 rounded-2xl shadow-2xl border border-gray-100">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Key className="text-teal-600 w-5 h-5" />
+                AI BYOK Configuration
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-2">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Configure your own API credentials to power AI features like the Bio Writer, Office Tagline generator, and Spreadsheet cleaner.
+              </p>
+
+              {/* API Key Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-700 block">API Key</label>
+                <Input
+                  type="password"
+                  placeholder="sk-or-v1-..."
+                  value={modalKey}
+                  onChange={(e) => setModalKey(e.target.value)}
+                  className="h-9 border-gray-200 text-xs"
+                />
+              </div>
+
+              {/* Default vs Custom Toggle Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-700 block">Model & Endpoint Configuration</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Default Option */}
+                  <label
+                    className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-xl cursor-pointer transition-all active:scale-[0.98]
+                      ${modalDefault 
+                        ? "border-teal-500 bg-teal-50/50 text-teal-900" 
+                        : "border-gray-200 bg-white hover:border-gray-300 text-gray-700"
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="api_config_type"
+                      checked={modalDefault}
+                      onChange={() => setModalDefault(true)}
+                      className="accent-teal-600"
+                    />
+                    <div className="text-left">
+                      <p className="text-xs font-bold">Default</p>
+                      <p className="text-[9px] opacity-75">openrouter/free</p>
+                    </div>
+                  </label>
+
+                  {/* Custom Option */}
+                  <label
+                    className={`flex items-center gap-2 px-3 py-2.5 border-2 rounded-xl cursor-pointer transition-all active:scale-[0.98]
+                      ${!modalDefault 
+                        ? "border-teal-500 bg-teal-50/50 text-teal-900" 
+                        : "border-gray-200 bg-white hover:border-gray-300 text-gray-700"
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="api_config_type"
+                      checked={!modalDefault}
+                      onChange={() => setModalDefault(false)}
+                      className="accent-teal-600"
+                    />
+                    <div className="text-left">
+                      <p className="text-xs font-bold">Custom BYOK</p>
+                      <p className="text-[9px] opacity-75">Ollama / custom model</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Custom Input Fields (Visible/Editable only if custom is selected) */}
+              {!modalDefault && (
+                <div className="space-y-3 bg-gray-50 border border-gray-100 p-3 rounded-xl animation-fade-in">
+                  {/* Endpoint */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-600 block">Custom Endpoint URL</label>
+                    <Input
+                      placeholder="https://openrouter.ai/api/v1"
+                      value={modalEndpoint}
+                      onChange={(e) => setModalEndpoint(e.target.value)}
+                      className="h-8 border-gray-200 text-xs bg-white"
+                    />
+                  </div>
+
+                  {/* Model */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-600 block">Model ID</label>
+                    <Input
+                      placeholder="google/gemini-2.5-flash:free"
+                      value={modalModel}
+                      onChange={(e) => setModalModel(e.target.value)}
+                      className="h-8 border-gray-200 text-xs bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="flex-1 text-xs h-9 border-gray-200 font-semibold"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    handleSaveAISettings(modalKey, modalDefault, modalEndpoint, modalModel);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="flex-1 text-xs h-9 bg-teal-700 hover:bg-teal-800 text-white font-bold"
+                >
+                  Save Settings
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* AI Settings */}
       {aiSettingsOpen && <AISettings open={aiSettingsOpen} onOpenChange={setAiSettingsOpen} />}
