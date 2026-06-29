@@ -1077,12 +1077,21 @@ export default function CardPreview({
 
         {/* ── Name ── */}
         <g {...dragHandle("name")} transform={`translate(${offsets.name?.x || 0},${offsets.name?.y || 0})`}>
-          <text x="38" y={hasPhoto ? 145 : 160} className="fc-name" fontSize={offsets.name?.fontSize || 32} fontWeight="800" letterSpacing="-0.5" fill={nameColor1}>
-            <tspan x="38">{firstName}</tspan>
-            {lastName && <tspan x="38" dy={offsets.name?.fontSize ? offsets.name.fontSize + 4 : 36} fill={nameColor2}>{lastName}</tspan>}
+          <text x="38" y={hasPhoto ? 145 : 175} className="fc-name" fontSize={offsets.name?.fontSize || (hasPhoto ? 32 : 36)} fontWeight="800" letterSpacing="-0.5">
+            {hasPhoto ? (
+              <>
+                <tspan x="38" fill={nameColor1}>{firstName}</tspan>
+                {lastName && <tspan x="38" dy={offsets.name?.fontSize ? offsets.name.fontSize + 4 : 36} fill={nameColor2}>{lastName}</tspan>}
+              </>
+            ) : (
+              <tspan x="38">
+                <tspan fill={nameColor1}>{firstName}</tspan>
+                {lastName && <tspan fill={nameColor2}>{" "}{lastName}</tspan>}
+              </tspan>
+            )}
           </text>
-          <line x1="38" y1={hasPhoto ? 200 : 225} x2="83" y2={hasPhoto ? 200 : 225} stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
-          {editorMode && <rect x="32" y={hasPhoto ? 105 : 120} width={hasPhoto ? 255 : 435} height="100" rx="6" className="drag-outline" />}
+          <line x1="38" y1={hasPhoto ? 200 : 210} x2="83" y2={hasPhoto ? 200 : 210} stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
+          {editorMode && <rect x="32" y={hasPhoto ? 105 : 130} width={hasPhoto ? 255 : 435} height="100" rx="6" className="drag-outline" />}
         </g>
 
         {/* ── Designation ── */}
