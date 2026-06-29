@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { CARD_THEMES, FONT_PAIRINGS, resolveCardTheme, type CardTheme, type FontPairing } from "./ThemeSelector";
 
 import { Button } from "@/components/ui/button";
-import { Download, MessageCircle, Move, Settings } from "lucide-react";
+import { Download, MessageCircle, Move, Settings, Undo2, Redo2 } from "lucide-react";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 
@@ -53,12 +53,16 @@ interface TextBox {
 interface CardPreviewProps {
   cardData: CardData;
   layoutType: "horizontal-no-photo" | "horizontal-with-photo" | "vertical-no-photo" | "vertical-with-photo";
-  savedOffsets?: Record<string, { x: number; y: number; scale?: number; fontSize?: number }>;
-  onOffsetsChange?: (offsets: Record<string, { x: number; y: number; scale?: number; fontSize?: number }>) => void;
+  savedOffsets?: Record<string, any>;
+  onOffsetsChange?: (offsets: Record<string, any>) => void;
   isPublicView?: boolean;
   cardId?: number;
   textBoxes?: TextBox[];
   onTextBoxMove?: (id: string, x: number, y: number) => void;
+  undo?: () => void;
+  redo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 // ── SVG path data for icons (all 24×24 viewBox) ──────────────────────────────
@@ -113,17 +117,334 @@ function ContactRow({
   );
 }
 
-// Helper: social icon circle with label
-function SocialIcon({ cx, cy, iconPath, bgColor, href, label }: {
-  cx: number; cy: number; iconPath: string; bgColor: string; href: string; label: string;
+// Helper: social icon circle with label (supporting independent editing layers)
+function SocialIcon({
+  itemKey,
+  cx,
+  cy,
+  iconPath,
+  bgColor,
+  href,
+  label,
+  offsets,
+  editorMode,
+  dragHandle,
+  resizeHandle,
+}: {
+  itemKey: string;
+  cx: number;
+  cy: number;
+  iconPath: string;
+  bgColor: string;
+  href: string;
+  label: string;
+  offsets: Record<string, any>;
+  editorMode: boolean;
+  dragHandle: (item: string) => any;
+  resizeHandle: (item: string, cx: number, cy: number) => any;
 }) {
+  const o = offsets[itemKey] || { x: 0, y: 0, scale: 1 };
+  const s = o.scale ?? 1;
+  const tx = o.x || 0;
+  const ty = o.y || 0;
   const hasHref = href && href !== "Data Missing" && href !== "#";
+
   return (
-    <a href={hasHref ? href : undefined} target="_blank" rel="noopener noreferrer">
-      <circle cx={cx} cy={cy} r={11} fill={bgColor} />
-      <path d={iconPath} fill="#ffffff" transform={`translate(${cx - 5.5}, ${cy - 5.5}) scale(0.458)`} />
-      <text x={cx} y={cy + 22} textAnchor="middle" fontSize="7" fontWeight="600" fill="#6b7280" fontFamily="'Plus Jakarta Sans', sans-serif">{label}</text>
-    </a>
+    <g
+      {...(editorMode ? dragHandle(itemKey) : {})}
+      style={{
+        transform: `translate(${tx}px, ${ty}px) scale(${s})`,
+        transformBox: 'fill-box' as never,
+        transformOrigin: 'center' as never,
+      } as React.CSSProperties}
+    >
+      <a href={hasHref ? href : undefined} target="_blank" rel="noopener noreferrer">
+        <circle cx={cx} cy={cy} r={11} fill={bgColor} />
+        <path d={iconPath} fill="#ffffff" transform={`translate(${cx - 5.5}, ${cy - 5.5}) scale(0.458)`} />
+        <text x={cx} y={cy + 22} textAnchor="middle" fontSize="7" fontWeight="600" fill="#6b7280" fontFamily="'Plus Jakarta Sans', sans-serif">{label}</text>
+      </a>
+      {editorMode && (
+        <>
+          <rect
+            x={cx - 18}
+            y={cy - 16}
+            width={36}
+            height={44}
+            rx="4"
+            className="drag-outline"
+            style={{ pointerEvents: "none" }}
+          />
+          {resizeHandle(itemKey, cx + 18, cy + 28)}
+        </>
+      )}
+    </g>
+  );
+}
+
+// Helper: contact icon (supporting independent editing layers)
+function ContactIcon({
+  itemKey,
+  cx,
+  cy,
+  iconPath,
+  iconBg,
+  href,
+  editorMode,
+  offsets,
+  dragHandle,
+  resizeHandle,
+  extraScale = 1.0,
+}: {
+  itemKey: string;
+  cx: number;
+  cy: number;
+  iconPath: string;
+  iconBg: string;
+  href: string;
+  editorMode: boolean;
+  offsets: Record<string, any>;
+  dragHandle: (item: string) => any;
+  resizeHandle: (item: string, cx: number, cy: number) => any;
+  extraScale?: number;
+}) {
+  const o = offsets[itemKey] || { x: 0, y: 0, scale: 1 };
+  const s = o.scale ?? 1;
+  const tx = o.x || 0;
+  const ty = o.y || 0;
+
+  return (
+    <g
+      {...(editorMode ? dragHandle(itemKey) : {})}
+      style={{
+        transform: `translate(${tx}px, ${ty}px) scale(${s})`,
+        transformBox: 'fill-box' as never,
+        transformOrigin: 'center' as never,
+      } as React.CSSProperties}
+    >
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        <circle cx={cx} cy={cy} r={15} fill={iconBg} />
+        <path d={iconPath} fill="#fff" transform={`translate(${cx - 7.5}, ${cy - 7.5}) scale(${0.625 * extraScale})`} />
+        {itemKey.includes("email") && (
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z" stroke="#fff" strokeWidth="2" fill="none" transform={`translate(${cx - 7.5}, ${cy - 7.5}) scale(${0.625 * extraScale})`} opacity="0" />
+        )}
+      </a>
+      {editorMode && (
+        <>
+          <rect x={cx - 18} y={cy - 18} width={36} height={36} rx="6" className="drag-outline" style={{ pointerEvents: "none" }} />
+          {resizeHandle(itemKey, cx + 18, cy + 18)}
+        </>
+      )}
+    </g>
+  );
+}
+
+// Helper: contact text block (supporting independent editing layers)
+function ContactText({
+  itemKey,
+  x,
+  y,
+  label,
+  value,
+  href,
+  themeSubText,
+  themeBodyText,
+  valueColor,
+  editorMode,
+  offsets,
+  dragHandle,
+  resizeHandle,
+  isVertical = false,
+}: {
+  itemKey: string;
+  x: number;
+  y: number;
+  label: string;
+  value: string;
+  href: string;
+  themeSubText: string;
+  themeBodyText: string;
+  valueColor: string;
+  editorMode: boolean;
+  offsets: Record<string, any>;
+  dragHandle: (item: string) => any;
+  resizeHandle: (item: string, cx: number, cy: number) => any;
+  isVertical?: boolean;
+}) {
+  const o = offsets[itemKey] || { x: 0, y: 0, scale: 1 };
+  const s = o.scale ?? 1;
+  const tx = o.x || 0;
+  const ty = o.y || 0;
+
+  return (
+    <g
+      {...(editorMode ? dragHandle(itemKey) : {})}
+      style={{
+        transform: `translate(${tx}px, ${ty}px) scale(${s})`,
+        transformBox: 'fill-box' as never,
+        transformOrigin: 'center' as never,
+      } as React.CSSProperties}
+    >
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        <text x={x} y={y} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">{label}</text>
+        <text x={x} y={y + 14} fontSize={isVertical ? 11 : 10} fontWeight="600" fill={valueColor} className="fc-body">{value}</text>
+      </a>
+      {editorMode && (
+        <>
+          <rect x={x - 6} y={y - 12} width={130} height={32} rx="4" className="drag-outline" style={{ pointerEvents: "none" }} />
+          {resizeHandle(itemKey, x + 124, y + 20)}
+        </>
+      )}
+    </g>
+  );
+}
+
+// Helper: address map pin icon (supporting independent editing layers)
+function AddressIcon({
+  itemKey,
+  cx,
+  cy,
+  iconPath,
+  iconBg,
+  editorMode,
+  offsets,
+  dragHandle,
+  resizeHandle,
+  extraScale = 1.0,
+}: {
+  itemKey: string;
+  cx: number;
+  cy: number;
+  iconPath: string;
+  iconBg: string;
+  editorMode: boolean;
+  offsets: Record<string, any>;
+  dragHandle: (item: string) => any;
+  resizeHandle: (item: string, cx: number, cy: number) => any;
+  extraScale?: number;
+}) {
+  const o = offsets[itemKey] || { x: 0, y: 0, scale: 1 };
+  const s = o.scale ?? 1;
+  const tx = o.x || 0;
+  const ty = o.y || 0;
+
+  return (
+    <g
+      {...(editorMode ? dragHandle(itemKey) : {})}
+      style={{
+        transform: `translate(${tx}px, ${ty}px) scale(${s})`,
+        transformBox: 'fill-box' as never,
+        transformOrigin: 'center' as never,
+      } as React.CSSProperties}
+    >
+      <path d={iconPath} fill={iconBg} transform={`translate(${cx}, ${cy}) scale(${extraScale})`} />
+      {editorMode && (
+        <>
+          <rect x={cx - 4} y={cy - 4} width={28} height={28} rx="4" className="drag-outline" style={{ pointerEvents: "none" }} />
+          {resizeHandle(itemKey, cx + 24, cy + 24)}
+        </>
+      )}
+    </g>
+  );
+}
+
+// Helper: address company name (supporting independent editing layers)
+function AddressCompany({
+  itemKey,
+  x,
+  y,
+  text,
+  textColor,
+  editorMode,
+  offsets,
+  dragHandle,
+  resizeHandle,
+}: {
+  itemKey: string;
+  x: number;
+  y: number;
+  text: string | string[];
+  textColor: string;
+  editorMode: boolean;
+  offsets: Record<string, any>;
+  dragHandle: (item: string) => any;
+  resizeHandle: (item: string, cx: number, cy: number) => any;
+}) {
+  const o = offsets[itemKey] || { x: 0, y: 0, scale: 1 };
+  const s = o.scale ?? 1;
+  const tx = o.x || 0;
+  const ty = o.y || 0;
+  const lines = Array.isArray(text) ? text : [text];
+
+  return (
+    <g
+      {...(editorMode ? dragHandle(itemKey) : {})}
+      style={{
+        transform: `translate(${tx}px, ${ty}px) scale(${s})`,
+        transformBox: 'fill-box' as never,
+        transformOrigin: 'center' as never,
+      } as React.CSSProperties}
+    >
+      <text x={x} y={y} fontSize="10" fontWeight="700" fill={textColor} className="fc-body">
+        {lines.map((line, idx) => (
+          <tspan key={idx} x={x} dy={idx === 0 ? 0 : 11}>{line}</tspan>
+        ))}
+      </text>
+      {editorMode && (
+        <>
+          <rect x={x - 6} y={y - 12} width={180} height={10 + (lines.length * 11)} rx="4" className="drag-outline" style={{ pointerEvents: "none" }} />
+          {resizeHandle(itemKey, x + 174, y - 2 + (lines.length * 11))}
+        </>
+      )}
+    </g>
+  );
+}
+
+// Helper: address details (supporting independent editing layers)
+function AddressDetails({
+  itemKey,
+  x,
+  y,
+  text,
+  themeSubText,
+  editorMode,
+  offsets,
+  dragHandle,
+  resizeHandle,
+  multilineFn,
+}: {
+  itemKey: string;
+  x: number;
+  y: number;
+  text: string;
+  themeSubText: string;
+  editorMode: boolean;
+  offsets: Record<string, any>;
+  dragHandle: (item: string) => any;
+  resizeHandle: (item: string, cx: number, cy: number) => any;
+  multilineFn: any;
+}) {
+  const o = offsets[itemKey] || { x: 0, y: 0, scale: 1 };
+  const s = o.scale ?? 1;
+  const tx = o.x || 0;
+  const ty = o.y || 0;
+
+  return (
+    <g
+      {...(editorMode ? dragHandle(itemKey) : {})}
+      style={{
+        transform: `translate(${tx}px, ${ty}px) scale(${s})`,
+        transformBox: 'fill-box' as never,
+        transformOrigin: 'center' as never,
+      } as React.CSSProperties}
+    >
+      {multilineFn(text, x, y, 55, 13, { fontSize: 9.5, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
+      {editorMode && (
+        <>
+          <rect x={x - 6} y={y - 12} width={180} height={40} rx="4" className="drag-outline" style={{ pointerEvents: "none" }} />
+          {resizeHandle(itemKey, x + 174, y + 28)}
+        </>
+      )}
+    </g>
   );
 }
 
@@ -136,6 +457,10 @@ export default function CardPreview({
   cardId,
   textBoxes = [],
   onTextBoxMove,
+  undo,
+  redo,
+  canUndo = false,
+  canRedo = false,
 }: CardPreviewProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -189,10 +514,43 @@ export default function CardPreview({
     designation: { x: 0, y: 0, fontSize: 15 },
     logo: { x: 0, y: 0, scale: 1.0 },
     qr: { x: 0, y: 0, scale: 1.0 },
+    photo: { x: 0, y: 0, scale: 1.0 },
+    
+    // Group references preserved for backward compatibility
     contacts: { x: 0, y: 0, scale: 1.0 },
     address: { x: 0, y: 0, scale: 1.0 },
     socials: { x: 0, y: 0, scale: 1.0 },
-    photo: { x: 0, y: 0, scale: 1.0 },
+
+    // Contact icons
+    contact_mobile_icon: { x: 0, y: 0, scale: 1.0 },
+    contact_phone_icon: { x: 0, y: 0, scale: 1.0 },
+    contact_email_icon: { x: 0, y: 0, scale: 1.0 },
+    contact_website_icon: { x: 0, y: 0, scale: 1.0 },
+    
+    // Contact text labels
+    contact_mobile_text: { x: 0, y: 0, scale: 1.0 },
+    contact_phone_text: { x: 0, y: 0, scale: 1.0 },
+    contact_email_text: { x: 0, y: 0, scale: 1.0 },
+    contact_website_text: { x: 0, y: 0, scale: 1.0 },
+    
+    // Address elements
+    address_icon: { x: 0, y: 0, scale: 1.0 },
+    address_company: { x: 0, y: 0, scale: 1.0 },
+    address_details: { x: 0, y: 0, scale: 1.0 },
+    
+    // Social icons
+    social_whatsapp: { x: 0, y: 0, scale: 1.0 },
+    social_linkedin: { x: 0, y: 0, scale: 1.0 },
+    social_instagram: { x: 0, y: 0, scale: 1.0 },
+    social_youtube: { x: 0, y: 0, scale: 1.0 },
+    social_twitter: { x: 0, y: 0, scale: 1.0 },
+    social_facebook: { x: 0, y: 0, scale: 1.0 },
+    
+    // Decorators
+    divider_accent: { x: 0, y: 0, scale: 1.0 },
+    divider_grid_top: { x: 0, y: 0, scale: 1.0 },
+    divider_grid_bottom: { x: 0, y: 0, scale: 1.0 },
+    divider_socials: { x: 0, y: 0, scale: 1.0 },
   };
 
   const [offsets, setOffsets] = useState(defaultOffsets);
@@ -688,8 +1046,11 @@ export default function CardPreview({
             </text>
           );
         })()}
-        <line x1="50" y1="130" x2="95" y2="130" stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
         {editorMode && <rect x="44" y="55" width="460" height="85" rx="6" className="drag-outline" />}
+      </g>
+      <g {...dragHandle("divider_accent")} transform={`translate(${offsets.divider_accent?.x || 0},${offsets.divider_accent?.y || 0})`}>
+        <line x1="50" y1="130" x2="95" y2="130" stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
+        {editorMode && <line x1="50" y1="130" x2="95" y2="130" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
       </g>
 
       {/* ── Designation + Office + Bio (optional) ── */}
@@ -721,96 +1082,45 @@ export default function CardPreview({
         })()}
       </g>
 
-      {/* ── Contact Row: Mobile | Phone | Email | Website ── */}
-      {scaledGroup("contacts", <>
-        {editorMode && <rect x="40" y="190" width="580" height="65" rx="6" className="drag-outline" />}
-        {/* Separator line */}
+      {/* ── Contact Row: Mobile | Phone | Email | Website (Independent Layers) ── */}
+      <g {...dragHandle("divider_grid_top")} transform={`translate(${offsets.divider_grid_top?.x || 0},${offsets.divider_grid_top?.y || 0})`}>
         <line x1="50" y1="195" x2="620" y2="195" stroke="#e5e7eb" strokeWidth="1" />
+        {editorMode && <line x1="50" y1="195" x2="620" y2="195" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+      </g>
 
-        {/* Mobile */}
-        <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="72" cy="225" r="15" fill={activeTheme.iconBg} />
-          <path d={ICONS.phone} fill="#fff" transform="translate(64.5,217.5) scale(0.625)" />
-          <text x="96" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">MOBILE</text>
-          <text x="96" y="232" fontSize="10" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 18) || "Data Missing"}</text>
-        </a>
+      <ContactIcon itemKey="contact_mobile_icon" cx={72} cy={225} iconPath={ICONS.phone} iconBg={activeTheme.iconBg} href={`tel:${cardData.phone}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <ContactText itemKey="contact_mobile_text" x={96} y={218} label="MOBILE" value={truncate(cardData.phone, 18) || "Data Missing"} href={`tel:${cardData.phone}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
 
-        {/* Divider */}
-        <line x1="185" y1="208" x2="185" y2="242" stroke={themeDivider} strokeWidth="1" />
+      <ContactIcon itemKey="contact_phone_icon" cx={207} cy={225} iconPath={ICONS.phone} iconBg={activeTheme.iconBg} href={`tel:${cardData.telephone || ""}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <ContactText itemKey="contact_phone_text" x={231} y={218} label="PHONE" value={truncate(cardData.telephone, 18) || "Data Missing"} href={`tel:${cardData.telephone || ""}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
 
-        {/* Phone */}
-        <a href={`tel:${cardData.telephone || ""}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="207" cy="225" r="15" fill={activeTheme.iconBg} />
-          <path d={ICONS.phone} fill="#fff" transform="translate(199.5,217.5) scale(0.625)" />
-          <text x="231" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">PHONE</text>
-          <text x="231" y="232" fontSize="10" fontWeight="600" fill={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.telephone, 18) || "Data Missing"}</text>
-        </a>
+      <ContactIcon itemKey="contact_email_icon" cx={347} cy={225} iconPath={ICONS.email} iconBg={activeTheme.iconBg} href={`mailto:${cardData.email}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <ContactText itemKey="contact_email_text" x={371} y={218} label="EMAIL" value={truncate(cardData.email, 18) || "Data Missing"} href={`mailto:${cardData.email}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
 
-        {/* Divider */}
-        <line x1="325" y1="208" x2="325" y2="242" stroke={themeDivider} strokeWidth="1" />
+      <ContactIcon itemKey="contact_website_icon" cx={497} cy={225} iconPath={ICONS.globe} iconBg={activeTheme.iconBg} href={getWebsite() || "#"} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <ContactText itemKey="contact_website_text" x={521} y={218} label="WEBSITE" value={truncate(cardData.social?.website || "", 18) || "Data Missing"} href={getWebsite() || "#"} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!getWebsite()) ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
 
-        {/* Email */}
-        <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="347" cy="225" r="15" fill={activeTheme.iconBg} />
-          <path d={ICONS.email} fill="#fff" transform="translate(339.5,217.5) scale(0.625)" />
-          <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform="translate(339.5,217.5) scale(0.625)" />
-          <text x="371" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">EMAIL</text>
-          <text x="371" y="232" fontSize="10" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.email, 18) || "Data Missing"}</text>
-        </a>
-
-        {/* Divider */}
-        <line x1="475" y1="208" x2="475" y2="242" stroke={themeDivider} strokeWidth="1" />
-
-        {/* Website */}
-        <a href={cardData.social?.website || "#"} target="_blank" rel="noopener noreferrer">
-          <circle cx="497" cy="225" r="15" fill={activeTheme.iconBg} />
-          <path d={ICONS.globe} fill="#fff" transform="translate(489.5,217.5) scale(0.625)" />
-          <text x="521" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">WEBSITE</text>
-          <text x="521" y="232" fontSize="10" fontWeight="600" fill={(!cardData.social?.website || cardData.social.website === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.social?.website || "", 18) || "Data Missing"}</text>
-        </a>
-
+      <g {...dragHandle("divider_grid_bottom")} transform={`translate(${offsets.divider_grid_bottom?.x || 0},${offsets.divider_grid_bottom?.y || 0})`}>
         <line x1="50" y1="260" x2="620" y2="260" stroke={themeDivider} strokeWidth="1" />
-      </>)}
+        {editorMode && <line x1="50" y1="260" x2="620" y2="260" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+      </g>
 
-        {/* Address bottom-left */}
-        {scaledGroup("address", <>
-          {(() => {
-            const officeLines = getOfficeNameLines(cardData.officeName || "Company Name Pvt. Ltd.", 45);
-            const addressY = 286 + (officeLines.length * 11);
-            return (
-              <>
-                <path d={ICONS.mapPin} fill={activeTheme.iconBg} transform="translate(48,275) scale(0.72)" />
-                <text x="72" y="286" fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">
-                  {officeLines.map((line, idx) => (
-                    <tspan key={idx} x="72" dy={idx === 0 ? 0 : 11}>{line}</tspan>
-                  ))}
-                </text>
-                {multiline(cardData.address || "Data Missing", 72, addressY + 4, 55, 13,
-                  { fontSize: 9.5, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
-                {editorMode && (
-                  <rect x="40" y="268" width="430" height={32 + (officeLines.length * 11) + 20} rx="6" className="drag-outline" />
-                )}
-              </>
-            );
-          })()}
-        </>)}
+      {/* Address bottom-left (Independent Layers) */}
+      <AddressIcon itemKey="address_icon" cx={48} cy={275} iconPath={ICONS.mapPin} iconBg={activeTheme.iconBg} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.72} />
+      <AddressCompany itemKey="address_company" x={72} y={286} text={getOfficeNameLines(cardData.officeName || "Company Name Pvt. Ltd.", 45)} textColor={themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <AddressDetails itemKey="address_details" x={72} y={286 + (getOfficeNameLines(cardData.officeName || "Company Name Pvt. Ltd.", 45).length * 11) + 4} text={cardData.address || "Data Missing"} themeSubText={themeSubText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} multilineFn={multiline} />
 
-      {/* ── Social icons row ── */}
-      {/* Divider line is FIXED — outside the scaledGroup so it doesn't scale */}
-      <line x1="50" y1="345" x2="740" y2="345" stroke="#e5e7eb" strokeWidth="1" />
-      {scaledGroup("socials", <>
-        <SocialIcon cx={420} cy={388} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WhatsApp" />
-        <line x1="450" y1="373" x2="450" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={480} cy={388} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
-        <line x1="510" y1="373" x2="510" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={540} cy={388} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" />
-        <line x1="570" y1="373" x2="570" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={600} cy={388} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YouTube" />
-        <line x1="630" y1="373" x2="630" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={660} cy={388} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" />
-        <line x1="690" y1="373" x2="690" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={720} cy={388} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" />
-      </>)}
+      {/* ── Social icons row (Independent Layers) ── */}
+      <g {...dragHandle("divider_socials")} transform={`translate(${offsets.divider_socials?.x || 0},${offsets.divider_socials?.y || 0})`}>
+        <line x1="50" y1="345" x2="740" y2="345" stroke="#e5e7eb" strokeWidth="1" />
+        {editorMode && <line x1="50" y1="345" x2="740" y2="345" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+      </g>
+      <SocialIcon itemKey="social_whatsapp" cx={420} cy={388} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WhatsApp" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_linkedin" cx={480} cy={388} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_instagram" cx={540} cy={388} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_youtube" cx={600} cy={388} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YouTube" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_twitter" cx={660} cy={388} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_facebook" cx={720} cy={388} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
 
       {/* ── QR Code (bottom-right) ── */}
       <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
@@ -894,8 +1204,11 @@ export default function CardPreview({
           <tspan fill={nameColor1}>{firstName}</tspan>
           {lastName && <tspan fill={nameColor2}> {lastName}</tspan>}
         </text>
-        <line x1="310" y1="107" x2="355" y2="107" stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
         {editorMode && <rect x="304" y="45" width="380" height="70" rx="6" className="drag-outline" />}
+      </g>
+      <g {...dragHandle("divider_accent")} transform={`translate(${offsets.divider_accent?.x || 0},${offsets.divider_accent?.y || 0})`}>
+        <line x1="310" y1="107" x2="355" y2="107" stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
+        {editorMode && <line x1="310" y1="107" x2="355" y2="107" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
       </g>
 
       {/* ── Designation ── */}
@@ -921,45 +1234,34 @@ export default function CardPreview({
         })()}
       </g>
 
-      {/* ── Contacts (stacked: Mobile, Phone, Email, Website) — NO address here, address has its own section below ── */}
-      {scaledGroup("contacts", <>
-        {editorMode && <rect x="304" y="173" width="310" height="160" rx="6" className="drag-outline" />}
+      {/* ── Contacts Stack (Independent Layers) ── */}
+      <g {...dragHandle("divider_grid_top")} transform={`translate(${offsets.divider_grid_top?.x || 0},${offsets.divider_grid_top?.y || 0})`}>
         <line x1="310" y1="178" x2="610" y2="178" stroke="#e5e7eb" strokeWidth="1" />
-        {/* Mobile */}
-        <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="325" cy="205" r="13" fill={brandColors.primary} />
-          <path d={ICONS.phone} fill="#fff" transform="translate(318.5,198.5) scale(0.55)" />
-          <text x="348" y="210" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 30) || "Data Missing"}</text>
-        </a>
-        {/* Phone */}
-        <a href={`tel:${cardData.telephone || ""}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="325" cy="240" r="13" fill={brandColors.primary} />
-          <path d={ICONS.phone} fill="#fff" transform="translate(318.5,233.5) scale(0.55)" />
-          <text x="348" y="245" fontSize="11" fontWeight="600" fill={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.telephone, 30) || "Data Missing"}</text>
-        </a>
-        {/* Email */}
-        <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="325" cy="275" r="13" fill={brandColors.primary} />
-          <path d={ICONS.email} fill="#fff" transform="translate(318.5,268.5) scale(0.55)" />
-          <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform="translate(318.5,268.5) scale(0.55)" />
-          <text x="348" y="280" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.email, 30) || "Data Missing"}</text>
-        </a>
-        {/* Website */}
-        <a href={getWebsite() || "#"} target="_blank" rel="noopener noreferrer">
-          <circle cx="325" cy="310" r="13" fill={brandColors.primary} />
-          <path d={ICONS.globe} fill="#fff" transform="translate(318.5,303.5) scale(0.55)" />
-          <text x="348" y="315" fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.social?.website || "", 30) || "Data Missing"}</text>
-        </a>
-      </>)}
+        {editorMode && <line x1="310" y1="178" x2="610" y2="178" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+      </g>
+
+      <ContactIcon itemKey="contact_mobile_icon" cx={325} cy={205} iconPath={ICONS.phone} iconBg={brandColors.primary} href={`tel:${cardData.phone}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.55} />
+      <ContactText itemKey="contact_mobile_text" x={348} y={198} label="MOBILE" value={truncate(cardData.phone, 30) || "Data Missing"} href={`tel:${cardData.phone}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} isVertical={true} />
+
+      <ContactIcon itemKey="contact_phone_icon" cx={325} cy={240} iconPath={ICONS.phone} iconBg={brandColors.primary} href={`tel:${cardData.telephone || ""}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.55} />
+      <ContactText itemKey="contact_phone_text" x={348} y={233} label="PHONE" value={truncate(cardData.telephone, 30) || "Data Missing"} href={`tel:${cardData.telephone || ""}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} isVertical={true} />
+
+      <ContactIcon itemKey="contact_email_icon" cx={325} cy={275} iconPath={ICONS.email} iconBg={brandColors.primary} href={`mailto:${cardData.email}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.55} />
+      <ContactText itemKey="contact_email_text" x={348} y={268} label="EMAIL" value={truncate(cardData.email, 30) || "Data Missing"} href={`mailto:${cardData.email}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} isVertical={true} />
+
+      <ContactIcon itemKey="contact_website_icon" cx={325} cy={310} iconPath={ICONS.globe} iconBg={brandColors.primary} href={getWebsite() || "#"} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.55} />
+      <ContactText itemKey="contact_website_text" x={348} y={303} label="WEBSITE" value={truncate(cardData.social?.website || "", 30) || "Data Missing"} href={getWebsite() || "#"} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!getWebsite()) ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} isVertical={true} />
 
       {/* Vertical divider */}
-      <line x1="622" y1="178" x2="622" y2="345" stroke="url(#dividerGrad)" strokeWidth="1.5" />
+      <g {...dragHandle("divider_grid_bottom")} transform={`translate(${offsets.divider_grid_bottom?.x || 0},${offsets.divider_grid_bottom?.y || 0})`}>
+        <line x1="622" y1="178" x2="622" y2="345" stroke="url(#dividerGrad)" strokeWidth="1.5" />
+        {editorMode && <line x1="622" y1="178" x2="622" y2="345" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+      </g>
 
-      {/* ── QR ── */}
+      {/* ── QR Code ── */}
       <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
         <a href={getQRValue()} target="_blank" rel="noopener noreferrer">
           <rect x="638" y="178" width="118" height="118" rx="10" stroke={brandColors.primary} strokeWidth="1.5" fill="#fff" />
-          {/* Premium double border */}
           <rect x="641" y="181" width="112" height="112" rx="8" stroke={brandColors.primary} strokeWidth="0.5" fill="none" opacity="0.3" />
           <svg x="646" y="186" width="102" height="102">
             <QRCodeSVG value={getQRValue()} size={102} level="H" includeMargin={false} />
@@ -971,42 +1273,21 @@ export default function CardPreview({
       </g>
 
       {/* ── Bottom bar: Address + Socials ── */}
-      <line x1="50" y1="350" x2="750" y2="350" stroke="url(#dividerGrad)" strokeWidth="1.5" />
-      {scaledGroup("address", <>
-        {(() => {
-          const officeLines = getOfficeNameLines(cardData.officeName || "Company Name Pvt. Ltd.", 45);
-          const addressY = 370 + (officeLines.length * 11);
-          return (
-            <>
-              <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(53,359) scale(0.75)" />
-              <text x="75" y="370" fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">
-                {officeLines.map((line, idx) => (
-                  <tspan key={idx} x="75" dy={idx === 0 ? 0 : 11}>{line}</tspan>
-                ))}
-              </text>
-              {multiline(cardData.address || "Data Missing", 75, addressY + 4, 50, 13,
-                { fontSize: 9, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
-              {editorMode && (
-                <rect x="44" y="350" width="710" height={32 + (officeLines.length * 11) + 25} rx="6" className="drag-outline" />
-              )}
-            </>
-          );
-        })()}
-      </>)}
-      {scaledGroup("socials", <>
-        <SocialIcon cx={437} cy={390} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WhatsApp" />
-        <line x1="463" y1="376" x2="463" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={490} cy={390} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
-        <line x1="514" y1="376" x2="514" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={543} cy={390} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" />
-        <line x1="567" y1="376" x2="567" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={596} cy={390} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YouTube" />
-        <line x1="620" y1="376" x2="620" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
+      <g {...dragHandle("divider_socials")} transform={`translate(${offsets.divider_socials?.x || 0},${offsets.divider_socials?.y || 0})`}>
+        <line x1="50" y1="350" x2="750" y2="350" stroke="url(#dividerGrad)" strokeWidth="1.5" />
+        {editorMode && <line x1="50" y1="350" x2="750" y2="350" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+      </g>
 
-        <SocialIcon cx={649} cy={390} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" />
-        <line x1="673" y1="376" x2="673" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
-        <SocialIcon cx={702} cy={390} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" />
-      </>)}
+      <AddressIcon itemKey="address_icon" cx={53} cy={359} iconPath={ICONS.mapPin} iconBg={brandColors.primary} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.75} />
+      <AddressCompany itemKey="address_company" x={75} y={370} text={getOfficeNameLines(cardData.officeName || "Company Name Pvt. Ltd.", 45)} textColor={themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <AddressDetails itemKey="address_details" x={75} y={370 + (getOfficeNameLines(cardData.officeName || "Company Name Pvt. Ltd.", 45).length * 11) + 4} text={cardData.address || "Data Missing"} themeSubText={themeSubText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} multilineFn={multiline} />
+
+      <SocialIcon itemKey="social_whatsapp" cx={437} cy={390} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WhatsApp" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_linkedin" cx={490} cy={390} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_instagram" cx={543} cy={390} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_youtube" cx={596} cy={390} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YouTube" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_twitter" cx={649} cy={390} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+      <SocialIcon itemKey="social_facebook" cx={702} cy={390} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
       {/* ── Free-form text boxes (draggable, optional) ── */}
       {renderTextBoxes()}
     </svg>
@@ -1090,90 +1371,45 @@ export default function CardPreview({
               </tspan>
             )}
           </text>
-          <line x1="38" y1={hasPhoto ? 200 : 210} x2="83" y2={hasPhoto ? 200 : 210} stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
           {editorMode && <rect x="32" y={hasPhoto ? 105 : 130} width={hasPhoto ? 255 : 435} height="100" rx="6" className="drag-outline" />}
         </g>
-
-        {/* ── Designation ── */}
-        <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
-          {/* Designation */}
-          <text x="38" y={hasPhoto ? 225 : 255} fontSize={offsets.designation?.fontSize || 14} fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.designation, 32) || "Head of Marketing"}</text>
-
-          {/* Office Name (wrapped dynamically using getOfficeNameLines) */}
-          {(() => {
-            const limit = hasPhoto ? 28 : 45;
-            const officeLines = getOfficeNameLines(cardData.officeName, limit);
-            const startY = hasPhoto ? 250 : 280;
-            return (
-              <>
-                <text x="38" y={startY} fontSize={(offsets.designation?.fontSize || 14) - 1} fontWeight="600" fill={nameColor2} className="fc-body">
-                  {officeLines.map((line, idx) => (
-                    <tspan key={idx} x="38" dy={idx === 0 ? 0 : 13}>{line}</tspan>
-                  ))}
-                </text>
-                {editorMode && (
-                  <rect x="32" y={hasPhoto ? 210 : 240} width="440" height={32 + (officeLines.length * 13)} rx="6" className="drag-outline" />
-                )}
-              </>
-            );
-          })()}
+        <g {...dragHandle("divider_accent")} transform={`translate(${offsets.divider_accent?.x || 0},${offsets.divider_accent?.y || 0})`}>
+          <line x1="38" y1={hasPhoto ? 200 : 210} x2="83" y2={hasPhoto ? 200 : 210} stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
+          {editorMode && <line x1="38" y1={hasPhoto ? 200 : 210} x2="83" y2={hasPhoto ? 200 : 210} stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+        </g>
+        <g {...dragHandle("divider_grid_top")} transform={`translate(${offsets.divider_grid_top?.x || 0},${offsets.divider_grid_top?.y || 0})`}>
+          <line x1="38" y1={hasPhoto ? 270 : 295} x2="476" y2={hasPhoto ? 270 : 295} stroke="url(#dividerGrad)" strokeWidth="1.5" />
+          {editorMode && <line x1="38" y1={hasPhoto ? 270 : 295} x2="476" y2={hasPhoto ? 270 : 295} stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
         </g>
 
-        {/* Separator — gradient */}
-        <line x1="38" y1={hasPhoto ? 270 : 295} x2="476" y2={hasPhoto ? 270 : 295} stroke="url(#dividerGrad)" strokeWidth="1.5" />
+        {/* ── Contacts (Independent Layers) ── */}
+        <ContactIcon itemKey="contact_mobile_icon" cx={60} cy={hasPhoto ? 305 : 330} iconPath={ICONS.phone} iconBg={activeTheme.iconBg} href={`tel:${cardData.phone}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.63} />
+        <ContactText itemKey="contact_mobile_text" x={84} y={hasPhoto ? 299 : 324} label="MOBILE" value={truncate(cardData.phone, 26) || "Data Missing"} href={`tel:${cardData.phone}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
 
-        {/* ── Contacts (2×2 grid) — Mobile/Phone top row, Email/Website bottom row ── */}
-        {scaledGroup("contacts", <>
-          {editorMode && <rect x="32" y={hasPhoto ? 274 : 299} width="450" height="140" rx="6" className="drag-outline" />}
-          {/* Mobile — top left */}
-          <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
-            <circle cx="60" cy={hasPhoto ? 305 : 330} r="15" fill={activeTheme.iconBg} />
-            <path d={ICONS.phone} fill="#fff" transform={`translate(52.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
-            <text x="84" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">MOBILE</text>
-            <text x="84" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
-          </a>
-          {/* Phone — top right */}
-          <a href={`tel:${cardData.telephone || ""}`} target="_blank" rel="noopener noreferrer">
-            <circle cx="270" cy={hasPhoto ? 305 : 330} r="15" fill={activeTheme.iconBg} />
-            <path d={ICONS.phone} fill="#fff" transform={`translate(262.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
-            <text x="294" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">PHONE</text>
-            <text x="294" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.telephone, 26) || "Data Missing"}</text>
-          </a>
-          {/* Email — bottom left */}
-          <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
-            <circle cx="60" cy={hasPhoto ? 358 : 383} r="15" fill={activeTheme.iconBg} />
-            <path d={ICONS.email} fill="#fff" transform={`translate(52.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
-            <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform={`translate(52.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
-            <text x="84" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">EMAIL</text>
-            <text x="84" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.email, 26) || "Data Missing"}</text>
-          </a>
-          {/* Website — bottom right */}
-          <a href={getWebsite() || "#"} target="_blank" rel="noopener noreferrer">
-            <circle cx="270" cy={hasPhoto ? 358 : 383} r="15" fill={activeTheme.iconBg} />
-            <path d={ICONS.globe} fill="#fff" transform={`translate(262.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
-            <text x="294" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">WEBSITE</text>
-            <text x="294" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.social?.website || "", 26) || "Data Missing"}</text>
-          </a>
-        </>)}
+        <ContactIcon itemKey="contact_phone_icon" cx={270} cy={hasPhoto ? 305 : 330} iconPath={ICONS.phone} iconBg={activeTheme.iconBg} href={`tel:${cardData.telephone || ""}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.63} />
+        <ContactText itemKey="contact_phone_text" x={294} y={hasPhoto ? 299 : 324} label="PHONE" value={truncate(cardData.telephone, 26) || "Data Missing"} href={`tel:${cardData.telephone || ""}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
 
-        {/* Separator — gradient */}
-        <line x1="38" y1={hasPhoto ? 408 : 433} x2="476" y2={hasPhoto ? 408 : 433} stroke="url(#dividerGrad)" strokeWidth="1.5" />
+        <ContactIcon itemKey="contact_email_icon" cx={60} cy={hasPhoto ? 358 : 383} iconPath={ICONS.email} iconBg={activeTheme.iconBg} href={`mailto:${cardData.email}`} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.63} />
+        <ContactText itemKey="contact_email_text" x={84} y={hasPhoto ? 352 : 377} label="EMAIL" value={truncate(cardData.email, 26) || "Data Missing"} href={`mailto:${cardData.email}`} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
 
-        {/* ── Address (bottom-left) ── */}
-        {scaledGroup("address", <>
-          {editorMode && <rect x="32" y={hasPhoto ? 412 : 437} width="240" height="180" rx="6" className="drag-outline" />}
-          <path d={ICONS.mapPin} fill={activeTheme.iconBg} transform={`translate(38,${hasPhoto ? 423 : 448}) scale(0.8)`} />
-          <text x="62" y={hasPhoto ? 437 : 462} fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">ADDRESS</text>
-          <text x="62" y={hasPhoto ? 454 : 479} fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.officeName, 25) || "Company Name Pvt. Ltd."}</text>
-          {multiline(cardData.address || "City, State, Country", 62, hasPhoto ? 470 : 495, 28, 14,
-            { fontSize: 9.5, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
-        </>)}
+        <ContactIcon itemKey="contact_website_icon" cx={270} cy={hasPhoto ? 358 : 383} iconPath={ICONS.globe} iconBg={activeTheme.iconBg} href={getWebsite() || "#"} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.63} />
+        <ContactText itemKey="contact_website_text" x={294} y={hasPhoto ? 352 : 377} label="WEBSITE" value={truncate(cardData.social?.website || "", 26) || "Data Missing"} href={getWebsite() || "#"} themeSubText={themeSubText} themeBodyText={themeBodyText} valueColor={(!getWebsite()) ? "#ef4444" : themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+
+        {/* Separator — gradient (Independent Layer) ── */}
+        <g {...dragHandle("divider_grid_bottom")} transform={`translate(${offsets.divider_grid_bottom?.x || 0},${offsets.divider_grid_bottom?.y || 0})`}>
+          <line x1="38" y1={hasPhoto ? 408 : 433} x2="476" y2={hasPhoto ? 408 : 433} stroke="url(#dividerGrad)" strokeWidth="1.5" />
+          {editorMode && <line x1="38" y1={hasPhoto ? 408 : 433} x2="476" y2={hasPhoto ? 408 : 433} stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+        </g>
+
+        {/* ── Address (Independent Layers) ── */}
+        <AddressIcon itemKey="address_icon" cx={38} cy={hasPhoto ? 423 : 448} iconPath={ICONS.mapPin} iconBg={activeTheme.iconBg} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} extraScale={0.8} />
+        <AddressCompany itemKey="address_company" x={62} y={hasPhoto ? 437 : 462} text={truncate(cardData.officeName, 25) || "Company Name Pvt. Ltd."} textColor={themeBodyText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+        <AddressDetails itemKey="address_details" x={62} y={hasPhoto ? 470 : 495} text={cardData.address || "City, State, Country"} themeSubText={themeSubText} editorMode={editorMode} offsets={offsets} dragHandle={dragHandle} resizeHandle={resizeHandle} multilineFn={multiline} />
 
         {/* ── QR Code (bottom-right) ── */}
         <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
           <a href={getQRValue()} target="_blank" rel="noopener noreferrer">
             <rect x="295" y={hasPhoto ? 414 : 439} width="178" height="178" rx="12" stroke={activeTheme.accentStrip} strokeWidth="1.5" fill={activeTheme.textStyle === "light" ? "#1e293b" : "#fff"} />
-            {/* Premium double border */}
             <rect x="298" y={hasPhoto ? 417 : 442} width="172" height="172" rx="10" stroke={activeTheme.accentStrip} strokeWidth="0.5" fill="none" opacity="0.3" />
             <svg x="305" y={hasPhoto ? 424 : 449} width="158" height="158">
               <QRCodeSVG value={getQRValue()} size={158} level="H" includeMargin={false} bgColor={activeTheme.textStyle === "light" ? "#1e293b" : "#ffffff"} fgColor={activeTheme.textStyle === "light" ? "#ffffff" : "#000000"} />
@@ -1184,22 +1420,17 @@ export default function CardPreview({
           {editorMode && <><rect x="290" y={hasPhoto ? 409 : 434} width="188" height="228" rx="6" className="drag-outline" />{resizeHandle("qr", 478, hasPhoto ? 637 : 662)}</> }
         </g>
 
-        {/* ── Socials Bar (bottom) ── */}
-        <line x1="38" y1={hasPhoto ? 660 : 685} x2="476" y2={hasPhoto ? 660 : 685} stroke="url(#dividerGrad)" strokeWidth="1.5" />
-        {scaledGroup("socials", <>
-          {editorMode && <rect x="32" y={hasPhoto ? 664 : 689} width="450" height="55" rx="6" className="drag-outline" />}
-          <SocialIcon cx={55} cy={hasPhoto ? 700 : 725} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WHATSAPP" />
-          <line x1="91" y1={hasPhoto ? 685 : 710} x2="91" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={127} cy={hasPhoto ? 700 : 725} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LINKEDIN" />
-          <line x1="163" y1={hasPhoto ? 685 : 710} x2="163" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={199} cy={hasPhoto ? 700 : 725} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="INSTAGRAM" />
-          <line x1="235" y1={hasPhoto ? 685 : 710} x2="235" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={271} cy={hasPhoto ? 700 : 725} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YOUTUBE" />
-          <line x1="307" y1={hasPhoto ? 685 : 710} x2="307" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={343} cy={hasPhoto ? 700 : 725} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="TWITTER" />
-          <line x1="379" y1={hasPhoto ? 685 : 710} x2="379" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={415} cy={hasPhoto ? 700 : 725} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="FACEBOOK" />
-        </>)}
+        {/* ── Socials Bar (Independent Layers) ── */}
+        <g {...dragHandle("divider_socials")} transform={`translate(${offsets.divider_socials?.x || 0},${offsets.divider_socials?.y || 0})`}>
+          <line x1="38" y1={hasPhoto ? 660 : 685} x2="476" y2={hasPhoto ? 660 : 685} stroke="url(#dividerGrad)" strokeWidth="1.5" />
+          {editorMode && <line x1="38" y1={hasPhoto ? 660 : 685} x2="476" y2={hasPhoto ? 660 : 685} stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4" className="drag-outline" />}
+        </g>
+        <SocialIcon itemKey="social_whatsapp" cx={55} cy={hasPhoto ? 700 : 725} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WhatsApp" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+        <SocialIcon itemKey="social_linkedin" cx={127} cy={hasPhoto ? 700 : 725} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+        <SocialIcon itemKey="social_instagram" cx={199} cy={hasPhoto ? 700 : 725} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+        <SocialIcon itemKey="social_youtube" cx={271} cy={hasPhoto ? 700 : 725} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YouTube" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+        <SocialIcon itemKey="social_twitter" cx={343} cy={hasPhoto ? 700 : 725} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
+        <SocialIcon itemKey="social_facebook" cx={415} cy={hasPhoto ? 700 : 725} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" offsets={offsets} editorMode={editorMode} dragHandle={dragHandle} resizeHandle={resizeHandle} />
         {/* ── Free-form text boxes (draggable, optional) ── */}
         {renderTextBoxes()}
       </svg>
@@ -1228,10 +1459,30 @@ export default function CardPreview({
               {editorMode ? "Exit Editor" : "Edit Layout"}
             </Button>
             {editorMode && (
-              <Button variant="ghost" size="sm" className="text-gray-500 text-xs border bg-white h-8"
-                onClick={() => updateOffsets(defaultOffsets)}>
-                Reset Layout
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 text-xs border bg-white h-8 gap-1.5 disabled:opacity-50"
+                  onClick={undo}
+                  disabled={!canUndo}
+                >
+                  <Undo2 size={13} /> Undo
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 text-xs border bg-white h-8 gap-1.5 disabled:opacity-50"
+                  onClick={redo}
+                  disabled={!canRedo}
+                >
+                  <Redo2 size={13} /> Redo
+                </Button>
+                <Button variant="ghost" size="sm" className="text-gray-500 text-xs border bg-white h-8"
+                  onClick={() => updateOffsets(defaultOffsets)}>
+                  Reset Layout
+                </Button>
+              </>
             )}
           </div>
         )}
