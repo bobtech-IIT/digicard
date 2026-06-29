@@ -1532,7 +1532,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
           </div>
 
           {/* Right Preview Column */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 lg:sticky lg:top-6 h-fit space-y-4">
             
             {/* AI suggestions container */}
             {showSuggestions && (
