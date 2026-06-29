@@ -129,115 +129,6 @@ export default function CardBuilder() {
   // Custom offsets from the drag editor
   const [offsets, setOffsets] = useState<Record<string, { x: number; y: number; scale?: number; fontSize?: number; rotation?: number; visible?: boolean; locked?: boolean; opacity?: number; color?: string; strokeWidth?: number }>>({});
 
-  // Undo/Redo canvas state history
-  const [history, setHistory] = useState<any[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const isUndoRedoAction = useRef(false);
-
-  // Synchronous commit helper
-  const commitState = (nextCardData: CardData, nextOffsets: any, nextTextBoxes: TextBox[]) => {
-    const cleanHistory = history.slice(0, historyIndex + 1);
-    const snapshot = {
-      cardData: JSON.parse(JSON.stringify(nextCardData)),
-      offsets: JSON.parse(JSON.stringify(nextOffsets)),
-      textBoxes: JSON.parse(JSON.stringify(nextTextBoxes)),
-    };
-    setHistory([...cleanHistory, snapshot]);
-    setHistoryIndex(cleanHistory.length);
-  };
-
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Helper to schedule a history commit (debounced for text editing & active drag updates)
-  const scheduleCommit = (nextCardData: CardData, nextOffsets: any, nextTextBoxes: TextBox[]) => {
-    if (isUndoRedoAction.current) {
-      isUndoRedoAction.current = false;
-      return;
-    }
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
-      const currentSnapshot = history[historyIndex];
-      if (currentSnapshot) {
-        const hasCardDataChanged = JSON.stringify(currentSnapshot.cardData) !== JSON.stringify(nextCardData);
-        const hasOffsetsChanged = JSON.stringify(currentSnapshot.offsets) !== JSON.stringify(nextOffsets);
-        const hasTextBoxesChanged = JSON.stringify(currentSnapshot.textBoxes) !== JSON.stringify(nextTextBoxes);
-        if (!hasCardDataChanged && !hasOffsetsChanged && !hasTextBoxesChanged) {
-          return;
-        }
-      }
-      commitState(nextCardData, nextOffsets, nextTextBoxes);
-    }, 450);
-  };
-
-  // Initialize history stack on first load
-  useEffect(() => {
-    if (history.length === 0 && cardData.name !== "") {
-      commitState(cardData, offsets, textBoxes);
-    }
-  }, [cardData, offsets, textBoxes, history]);
-
-  // Watch for state changes and push to history
-  useEffect(() => {
-    if (history.length > 0) {
-      scheduleCommit(cardData, offsets, textBoxes);
-    }
-  }, [cardData, offsets, textBoxes]);
-
-  const undo = () => {
-    if (historyIndex > 0) {
-      isUndoRedoAction.current = true;
-      const prevIdx = historyIndex - 1;
-      setHistoryIndex(prevIdx);
-      const snapshot = history[prevIdx];
-      setCardData(snapshot.cardData);
-      setOffsets(snapshot.offsets);
-      setTextBoxes(snapshot.textBoxes);
-      toast.success("Undo", { duration: 800 });
-    }
-  };
-
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      isUndoRedoAction.current = true;
-      const nextIdx = historyIndex + 1;
-      setHistoryIndex(nextIdx);
-      const snapshot = history[nextIdx];
-      setCardData(snapshot.cardData);
-      setOffsets(snapshot.offsets);
-      setTextBoxes(snapshot.textBoxes);
-      toast.success("Redo", { duration: 800 });
-    }
-  };
-
-  const undoRef = useRef(undo);
-  const redoRef = useRef(redo);
-  useEffect(() => {
-    undoRef.current = undo;
-    redoRef.current = redo;
-  });
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
-      const isShift = e.shiftKey;
-      if (isCmdOrCtrl) {
-        if (e.key.toLowerCase() === 'z') {
-          e.preventDefault();
-          if (isShift) {
-            redoRef.current();
-          } else {
-            undoRef.current();
-          }
-        } else if (e.key.toLowerCase() === 'y') {
-          e.preventDefault();
-          redoRef.current();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
   // State for the public share modal
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [savedCardId, setSavedCardId] = useState<number | null>(null);
@@ -356,6 +247,115 @@ export default function CardBuilder() {
     customBg: "",
     customTextColor: "",
   });
+
+  // Undo/Redo canvas state history
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoRedoAction = useRef(false);
+
+  // Synchronous commit helper
+  const commitState = (nextCardData: CardData, nextOffsets: any, nextTextBoxes: TextBox[]) => {
+    const cleanHistory = history.slice(0, historyIndex + 1);
+    const snapshot = {
+      cardData: JSON.parse(JSON.stringify(nextCardData)),
+      offsets: JSON.parse(JSON.stringify(nextOffsets)),
+      textBoxes: JSON.parse(JSON.stringify(nextTextBoxes)),
+    };
+    setHistory([...cleanHistory, snapshot]);
+    setHistoryIndex(cleanHistory.length);
+  };
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to schedule a history commit (debounced for text editing & active drag updates)
+  const scheduleCommit = (nextCardData: CardData, nextOffsets: any, nextTextBoxes: TextBox[]) => {
+    if (isUndoRedoAction.current) {
+      isUndoRedoAction.current = false;
+      return;
+    }
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      const currentSnapshot = history[historyIndex];
+      if (currentSnapshot) {
+        const hasCardDataChanged = JSON.stringify(currentSnapshot.cardData) !== JSON.stringify(nextCardData);
+        const hasOffsetsChanged = JSON.stringify(currentSnapshot.offsets) !== JSON.stringify(nextOffsets);
+        const hasTextBoxesChanged = JSON.stringify(currentSnapshot.textBoxes) !== JSON.stringify(nextTextBoxes);
+        if (!hasCardDataChanged && !hasOffsetsChanged && !hasTextBoxesChanged) {
+          return;
+        }
+      }
+      commitState(nextCardData, nextOffsets, nextTextBoxes);
+    }, 450);
+  };
+
+  // Initialize history stack on first load
+  useEffect(() => {
+    if (history.length === 0 && cardData.name !== "") {
+      commitState(cardData, offsets, textBoxes);
+    }
+  }, [cardData, offsets, textBoxes, history]);
+
+  // Watch for state changes and push to history
+  useEffect(() => {
+    if (history.length > 0) {
+      scheduleCommit(cardData, offsets, textBoxes);
+    }
+  }, [cardData, offsets, textBoxes]);
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      isUndoRedoAction.current = true;
+      const prevIdx = historyIndex - 1;
+      setHistoryIndex(prevIdx);
+      const snapshot = history[prevIdx];
+      setCardData(snapshot.cardData);
+      setOffsets(snapshot.offsets);
+      setTextBoxes(snapshot.textBoxes);
+      toast.success("Undo", { duration: 800 });
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      isUndoRedoAction.current = true;
+      const nextIdx = historyIndex + 1;
+      setHistoryIndex(nextIdx);
+      const snapshot = history[nextIdx];
+      setCardData(snapshot.cardData);
+      setOffsets(snapshot.offsets);
+      setTextBoxes(snapshot.textBoxes);
+      toast.success("Redo", { duration: 800 });
+    }
+  };
+
+  const undoRef = useRef(undo);
+  const redoRef = useRef(redo);
+  useEffect(() => {
+    undoRef.current = undo;
+    redoRef.current = redo;
+  });
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      const isShift = e.shiftKey;
+      if (isCmdOrCtrl) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (isShift) {
+            redoRef.current();
+          } else {
+            undoRef.current();
+          }
+        } else if (e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          redoRef.current();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const [vibgyorX, setVibgyorX] = useState(0.5);
   const [vibgyorY, setVibgyorY] = useState(0.5);
