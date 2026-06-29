@@ -139,8 +139,7 @@ export default function CardPreview({
   const cardRef = useRef<HTMLDivElement>(null);
 
   // ── Phase 2: resolve active theme + font pairing ──────────────────────────
-  const activeTheme: CardTheme =
-    CARD_THEMES.find(t => t.id === cardData.themeId) ?? CARD_THEMES[0];
+  const activeTheme = resolveCardTheme(cardData.themeId || "classic-white", cardData.brandColors);
   const activeFontPairing: FontPairing =
     FONT_PAIRINGS.find(f => f.id === cardData.fontPairingId) ?? FONT_PAIRINGS[0];
 
@@ -473,10 +472,8 @@ export default function CardPreview({
 
   // ── Phase 2: brand colors — theme takes precedence over user brand colors ─
   const brandColors = {
-    primary: activeTheme.id === "classic-white"
-      ? (cardData.brandColors?.primary || "#047857")
-      : activeTheme.iconBg,
-    secondary: cardData.brandColors?.secondary || "#0d9488",
+    primary: activeTheme.iconBg,
+    secondary: activeTheme.nameColor2,
   };
 
   const svgDefs = (
@@ -487,10 +484,21 @@ export default function CardPreview({
         .fc-body { font-family: '${activeFontPairing.bodyFont}', sans-serif; }
         .drag-outline { stroke: #06b6d4; stroke-width: 1.5; stroke-dasharray: 4; fill: #06b6d4; fill-opacity: 0.04; }
       `}</style>
-      {/* Optional background gradient for dark/eco themes */}
-      {activeTheme.bgGradient && (
-        <g dangerouslySetInnerHTML={{ __html: activeTheme.bgGradient }} />
-      )}
+      {/* Statically define background gradients so they always load correctly */}
+      <linearGradient id="luxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0a0a0a"/>
+        <stop offset="50%" stopColor="#1a1a2e"/>
+        <stop offset="100%" stopColor="#0a0a0a"/>
+      </linearGradient>
+      <linearGradient id="cyberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0f172a"/>
+        <stop offset="55%" stopColor="#1e1b4b"/>
+        <stop offset="100%" stopColor="#0f172a"/>
+      </linearGradient>
+      <linearGradient id="ecoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#F4F2EC"/>
+        <stop offset="100%" stopColor="#e8e4d8"/>
+      </linearGradient>
       <linearGradient id="dividerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stopColor="transparent" />
         <stop offset="25%" stopColor={activeTheme.accentStrip} stopOpacity="0.2" />
@@ -1102,27 +1110,6 @@ export default function CardPreview({
         </div>
       )}
 
-      {/* Action Buttons */}
-      {!isPublicView && (
-        <div className="flex flex-wrap gap-3 justify-center px-4">
-          <Button onClick={downloadSVG} disabled={isExporting}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2 px-5 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9">
-            <Download size={14} /> SVG
-          </Button>
-          <Button onClick={downloadPNG} disabled={isExporting}
-            className="bg-teal-700 hover:bg-teal-800 text-white gap-2 px-5 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9">
-            <Download size={14} /> {isExporting ? "Exporting…" : "PNG"}
-          </Button>
-          <Button onClick={downloadPDF} disabled={isExporting}
-            className="bg-cyan-700 hover:bg-cyan-800 text-white gap-2 px-5 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9">
-            <Download size={14} /> {isExporting ? "Exporting…" : "PDF"}
-          </Button>
-          <Button onClick={shareWhatsApp} disabled={isExporting}
-            className="bg-green-600 hover:bg-green-700 text-white gap-2 px-5 py-2 rounded-lg font-semibold transition-all shadow-md text-xs h-9">
-            <MessageCircle size={14} /> WhatsApp
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

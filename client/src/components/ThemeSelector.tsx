@@ -23,104 +23,149 @@ export interface CardTheme {
   textStyle: "dark" | "light"; // dark cards need white body text
 }
 
-export const CARD_THEMES: CardTheme[] = [
-  {
-    id: "classic-white",
-    name: "Classic White",
-    tag: "Clean",
-    bg: "#ffffff",
-    accentStrip: "#047857",
-    nameColor1: "#000000",
-    nameColor2: "#047857",
-    accentLine: "#047857",
-    bodyText: "#111827",
-    subText: "#6b7280",
-    divider: "#e5e7eb",
-    iconBg: "#047857",
-    previewGradient: "linear-gradient(135deg, #ffffff 60%, #d1fae5 100%)",
-    textStyle: "dark",
-  },
-  {
-    id: "luxury-gold",
-    name: "Luxury Black",
-    tag: "Premium",
-    bg: "#0a0a0a",
-    bgGradient: `<linearGradient id="luxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stopColor="#0a0a0a"/>
-      <stop offset="50%" stopColor="#1a1a2e"/>
-      <stop offset="100%" stopColor="#0a0a0a"/>
-    </linearGradient>`,
-    bgGradientId: "luxGrad",
-    accentStrip: "#D4AF37",
-    nameColor1: "#ffffff",
-    nameColor2: "#D4AF37",
-    accentLine: "#D4AF37",
-    bodyText: "#e5e7eb",
-    subText: "#9ca3af",
-    divider: "#374151",
-    iconBg: "#D4AF37",
-    previewGradient: "linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)",
-    textStyle: "light",
-  },
-  {
-    id: "cyber-gradient",
-    name: "Cyber Dark",
-    tag: "Tech",
-    bg: "#0f172a",
-    bgGradient: `<linearGradient id="cyberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stopColor="#0f172a"/>
-      <stop offset="55%" stopColor="#1e1b4b"/>
-      <stop offset="100%" stopColor="#0f172a"/>
-    </linearGradient>`,
-    bgGradientId: "cyberGrad",
-    accentStrip: "#06b6d4",
-    nameColor1: "#f8fafc",
-    nameColor2: "#06b6d4",
-    accentLine: "#06b6d4",
-    bodyText: "#e2e8f0",
-    subText: "#94a3b8",
-    divider: "#1e293b",
-    iconBg: "#0284c7",
-    previewGradient: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 55%, #164e63 100%)",
-    textStyle: "light",
-  },
-  {
-    id: "neo-brutalist",
-    name: "Neo Brutalist",
-    tag: "Bold",
-    bg: "#FFDE4D",
-    accentStrip: "#000000",
-    nameColor1: "#000000",
-    nameColor2: "#cc0000",
-    accentLine: "#000000",
-    bodyText: "#111111",
-    subText: "#444444",
-    divider: "#000000",
-    iconBg: "#000000",
-    previewGradient: "linear-gradient(135deg, #FFDE4D 0%, #FFB800 100%)",
-    textStyle: "dark",
-  },
-  {
-    id: "eco-green",
-    name: "Eco Forest",
-    tag: "Natural",
-    bg: "#F4F2EC",
-    bgGradient: `<linearGradient id="ecoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stopColor="#F4F2EC"/>
-      <stop offset="100%" stopColor="#e8e4d8"/>
-    </linearGradient>`,
-    bgGradientId: "ecoGrad",
-    accentStrip: "#1B3B2B",
-    nameColor1: "#1B3B2B",
-    nameColor2: "#2d6a4f",
-    accentLine: "#2d6a4f",
-    bodyText: "#1B3B2B",
-    subText: "#4a7c59",
-    divider: "#c8c4b2",
-    iconBg: "#1B3B2B",
-    previewGradient: "linear-gradient(135deg, #F4F2EC 0%, #d8f3dc 100%)",
-    textStyle: "dark",
-  },
+/** ─────────────────────────────────────────────────────────────────────────────
+ * DYNAMIC THEME RESOLVER
+ * Derives card colors dynamically from user brand colors for a unified palette.
+ * Ensures high contrast text colors so that cards are always readable.
+ * ─────────────────────────────────────────────────────────────────────────────*/
+export function resolveCardTheme(
+  themeId: string,
+  brandColors?: { primary: string; secondary: string }
+): CardTheme {
+  const primary = brandColors?.primary || "#047857";
+  const secondary = brandColors?.secondary || "#0d9488";
+
+  // Helper to determine if a hex color is light or dark (YIQ model)
+  const getContrast = (hex: string) => {
+    if (!hex) return "#ffffff";
+    const cleanHex = hex.replace("#", "");
+    if (cleanHex.length !== 6) return "#ffffff";
+    const r = parseInt(cleanHex.slice(0, 2), 16);
+    const g = parseInt(cleanHex.slice(2, 4), 16);
+    const b = parseInt(cleanHex.slice(4, 6), 16);
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return (yiq >= 128) ? "#111827" : "#ffffff";
+  };
+
+  switch (themeId) {
+    case "luxury-gold": // Premium
+      return {
+        id: "luxury-gold",
+        name: "Luxury Black",
+        tag: "Premium",
+        bg: "#0a0a0a",
+        bgGradient: `<linearGradient id="luxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#0a0a0a"/>
+          <stop offset="50%" stopColor="#1a1a2e"/>
+          <stop offset="100%" stopColor="#0a0a0a"/>
+        </linearGradient>`,
+        bgGradientId: "luxGrad",
+        accentStrip: primary,
+        nameColor1: "#ffffff",
+        nameColor2: primary,
+        accentLine: primary,
+        bodyText: "#e5e7eb",
+        subText: "#9ca3af",
+        divider: "#374151",
+        iconBg: primary,
+        previewGradient: `linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)`,
+        textStyle: "light",
+      };
+
+    case "cyber-gradient": // Tech
+      return {
+        id: "cyber-gradient",
+        name: "Cyber Dark",
+        tag: "Tech",
+        bg: "#0f172a",
+        bgGradient: `<linearGradient id="cyberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#0f172a"/>
+          <stop offset="55%" stopColor="#1e1b4b"/>
+          <stop offset="100%" stopColor="#0f172a"/>
+        </linearGradient>`,
+        bgGradientId: "cyberGrad",
+        accentStrip: primary,
+        nameColor1: "#f8fafc",
+        nameColor2: primary,
+        accentLine: primary,
+        bodyText: "#e2e8f0",
+        subText: "#94a3b8",
+        divider: "#1e293b",
+        iconBg: primary,
+        previewGradient: `linear-gradient(135deg, #0f172a 0%, #1e1b4b 55%, #164e63 100%)`,
+        textStyle: "light",
+      };
+
+    case "neo-brutalist": // Bold
+      const textContrast = getContrast(primary);
+      return {
+        id: "neo-brutalist",
+        name: "Neo Brutalist",
+        tag: "Bold",
+        bg: primary,
+        accentStrip: textContrast,
+        nameColor1: textContrast,
+        nameColor2: secondary,
+        accentLine: textContrast,
+        bodyText: textContrast,
+        subText: textContrast === "#ffffff" ? "#cbd5e1" : "#4b5563",
+        divider: textContrast,
+        iconBg: textContrast,
+        previewGradient: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`,
+        textStyle: textContrast === "#ffffff" ? "light" : "dark",
+      };
+
+    case "eco-green": // Natural
+      return {
+        id: "eco-green",
+        name: "Eco Forest",
+        tag: "Natural",
+        bg: "#F4F2EC",
+        bgGradient: `<linearGradient id="ecoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#F4F2EC"/>
+          <stop offset="100%" stopColor="#e8e4d8"/>
+        </linearGradient>`,
+        bgGradientId: "ecoGrad",
+        accentStrip: primary,
+        nameColor1: primary,
+        nameColor2: secondary,
+        accentLine: secondary,
+        bodyText: "#1f2937",        // Dark grey body text for guaranteed legibility
+        subText: "#4b5563",         // Medium grey subtext
+        divider: "#d1d5db",         // Balanced divider
+        iconBg: primary,
+        previewGradient: `linear-gradient(135deg, #F4F2EC 0%, #e8e4d8 100%)`,
+        textStyle: "dark",
+      };
+
+    case "classic-white": // Clean (default)
+    default:
+      return {
+        id: "classic-white",
+        name: "Classic White",
+        tag: "Clean",
+        bg: "#ffffff",
+        accentStrip: primary,
+        nameColor1: "#000000",
+        nameColor2: primary,
+        accentLine: primary,
+        bodyText: "#111827",
+        subText: "#6b7280",
+        divider: "#e5e7eb",
+        iconBg: primary,
+        previewGradient: `linear-gradient(135deg, #ffffff 60%, #e5e7eb 100%)`,
+        textStyle: "dark",
+      };
+  }
+}
+
+// Static definition list for names only (fallback)
+export const CARD_THEMES: { id: string; name: string; tag: string }[] = [
+  { id: "classic-white", name: "Classic White", tag: "Clean" },
+  { id: "luxury-gold", name: "Luxury Black", tag: "Premium" },
+  { id: "cyber-gradient", name: "Cyber Dark", tag: "Tech" },
+  { id: "neo-brutalist", name: "Neo Brutalist", tag: "Bold" },
+  { id: "eco-green", name: "Eco Forest", tag: "Natural" },
 ];
 
 /** ─────────────────────────────────────────────────────────────────────────────
@@ -184,6 +229,14 @@ export const FONT_PAIRINGS: FontPairing[] = [
     googleUrl: "https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap",
     preview: "Creative Edge",
   },
+  {
+    id: "poppins-brother",
+    label: "Poppins · Brother",
+    headingFont: "Poppins",
+    bodyFont: "Brother 1816', 'Inter",
+    googleUrl: "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap",
+    preview: "Poppins & Brother",
+  },
 ];
 
 /** ─────────────────────────────────────────────────────────────────────────────
@@ -194,6 +247,7 @@ interface ThemeSelectorProps {
   selectedFontId: string;
   onThemeChange: (themeId: string) => void;
   onFontChange: (fontId: string) => void;
+  brandColors?: { primary: string; secondary: string };
 }
 
 export default function ThemeSelector({
@@ -201,6 +255,7 @@ export default function ThemeSelector({
   selectedFontId,
   onThemeChange,
   onFontChange,
+  brandColors,
 }: ThemeSelectorProps) {
   return (
     <div className="space-y-5">
@@ -214,34 +269,37 @@ export default function ThemeSelector({
           </span>
         </div>
         <div className="grid grid-cols-5 gap-2">
-          {CARD_THEMES.map((theme) => {
-            const selected = theme.id === selectedThemeId;
+          {CARD_THEMES.map((themeDef) => {
+            const selected = themeDef.id === selectedThemeId;
+            // Resolve custom visual properties dynamically using the active brand colors
+            const themeObj = resolveCardTheme(themeDef.id, brandColors);
+
             return (
               <button
-                key={theme.id}
-                onClick={() => onThemeChange(theme.id)}
-                title={theme.name}
+                key={themeDef.id}
+                onClick={() => onThemeChange(themeDef.id)}
+                title={themeDef.name}
                 className={`relative flex flex-col items-center gap-1.5 rounded-xl border-2 transition-all duration-200 overflow-hidden
                   ${selected
                     ? "border-teal-500 shadow-lg shadow-teal-100 scale-[1.05]"
                     : "border-gray-200 hover:border-gray-300 hover:scale-[1.02]"
                   }`}
               >
-                {/* Theme colour preview */}
+                {/* Theme colour preview background */}
                 <div
                   className="w-full h-10 rounded-t-[10px]"
-                  style={{ background: theme.previewGradient }}
+                  style={{ background: themeObj.previewGradient }}
                 />
                 {/* Accent strip preview */}
-                <div className="w-full h-[3px]" style={{ background: theme.accentStrip }} />
-                {/* Selected check */}
+                <div className="w-full h-[3px]" style={{ background: themeObj.accentStrip }} />
+                {/* Selected check marker */}
                 {selected && (
                   <span className="absolute top-1 right-1 w-4 h-4 bg-teal-500 rounded-full flex items-center justify-center shadow">
                     <Check size={9} className="text-white" strokeWidth={3} />
                   </span>
                 )}
                 <span className="text-[9px] font-bold text-gray-600 pb-1.5 leading-tight px-1 text-center">
-                  {theme.tag}
+                  {themeDef.tag}
                 </span>
               </button>
             );

@@ -1240,6 +1240,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                       selectedFontId={cardData.fontPairingId || "outfit-jakarta"}
                       onThemeChange={(id) => setCardData(prev => ({ ...prev, themeId: id }))}
                       onFontChange={(id) => setCardData(prev => ({ ...prev, fontPairingId: id }))}
+                      brandColors={cardData.brandColors}
                     />
                   </div>
 
@@ -1327,51 +1328,64 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
             />
 
             {/* ── Export & Download Panel ──────────────────────────────── */}
-            <Card className="p-3 bg-white/80 border border-gray-100 rounded-2xl shadow-sm">
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <Download size={13} className="text-teal-600" />
-                <span className="text-xs font-bold text-gray-700">Export &amp; Download</span>
-                <span className="ml-auto text-[10px] text-gray-400">Download your card or save contact</span>
+            <Card className="p-3.5 bg-white border border-gray-150 rounded-2xl shadow-sm space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Download size={13} className="text-teal-600" />
+                  <span className="text-xs font-bold text-gray-700">Export &amp; Download</span>
+                </div>
+                <span className="text-[10px] text-gray-400 font-medium">PNG, PDF, SVG, vCard &amp; Share</span>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {/* PNG */}
-                <button
-                  onClick={() => handleExportSingleCard("png")}
-                  disabled={isExporting !== null}
-                  className="flex flex-col items-center gap-1 py-2.5 px-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-all disabled:opacity-50 group active:scale-95"
-                >
-                  {isExporting === "png" ? <Loader2 size={15} className="text-teal-600 animate-spin" /> : <FileImage size={15} className="text-teal-600 group-hover:scale-110 transition-transform" />}
-                  <span className="text-[10px] font-bold text-teal-800">PNG</span>
-                  <span className="text-[8px] text-teal-500 leading-tight">3× Hi-Res</span>
-                </button>
-                {/* PDF */}
-                <button
-                  onClick={() => handleExportSingleCard("pdf")}
-                  disabled={isExporting !== null}
-                  className="flex flex-col items-center gap-1 py-2.5 px-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all disabled:opacity-50 group active:scale-95"
-                >
-                  {isExporting === "pdf" ? <Loader2 size={15} className="text-rose-500 animate-spin" /> : <FileDown size={15} className="text-rose-500 group-hover:scale-110 transition-transform" />}
-                  <span className="text-[10px] font-bold text-rose-700">PDF</span>
-                  <span className="text-[8px] text-rose-400 leading-tight">Print Ready</span>
-                </button>
+              <div className="flex flex-wrap gap-2 pt-0.5">
                 {/* SVG */}
                 <button
                   onClick={() => handleExportSingleCard("svg")}
                   disabled={isExporting !== null}
-                  className="flex flex-col items-center gap-1 py-2.5 px-1 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-xl transition-all disabled:opacity-50 group active:scale-95"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#006d4e] hover:bg-[#00583f] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
                 >
-                  {isExporting === "svg" ? <Loader2 size={15} className="text-violet-500 animate-spin" /> : <FileType size={15} className="text-violet-500 group-hover:scale-110 transition-transform" />}
-                  <span className="text-[10px] font-bold text-violet-700">SVG</span>
-                  <span className="text-[8px] text-violet-400 leading-tight">Vector</span>
+                  <FileDown size={13} />
+                  <span>SVG</span>
                 </button>
+
+                {/* PNG */}
+                <button
+                  onClick={() => handleExportSingleCard("png")}
+                  disabled={isExporting !== null}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#007361] hover:bg-[#005e4f] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
+                >
+                  <FileImage size={13} />
+                  <span>PNG</span>
+                </button>
+
+                {/* PDF */}
+                <button
+                  onClick={() => handleExportSingleCard("pdf")}
+                  disabled={isExporting !== null}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#006e90] hover:bg-[#005772] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
+                >
+                  <FileDown size={13} />
+                  <span>PDF</span>
+                </button>
+
                 {/* vCard */}
                 <button
                   onClick={handleDownloadVCard}
-                  className="flex flex-col items-center gap-1 py-2.5 px-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all group active:scale-95"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#005fa3] hover:bg-[#004c82] text-white text-xs font-bold rounded-full transition-all active:scale-95 shadow-sm shrink-0"
                 >
-                  <Contact size={15} className="text-blue-500 group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-bold text-blue-700">vCard</span>
-                  <span className="text-[8px] text-blue-400 leading-tight">Contact</span>
+                  <Contact size={13} />
+                  <span>vCard</span>
+                </button>
+
+                {/* WhatsApp */}
+                <button
+                  onClick={handleShareWhatsApp}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#00a859] hover:bg-[#008f4c] text-white text-xs font-bold rounded-full transition-all active:scale-95 shadow-sm shrink-0"
+                >
+                  {/* Official WhatsApp icon SVG */}
+                  <svg viewBox="0 0 32 32" className="w-3.5 h-3.5 fill-white shrink-0" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16.003 0C7.164 0 .008 7.155.008 15.994c0 2.822.738 5.467 2.026 7.773L0 32l8.44-2.007a15.94 15.94 0 007.563 1.917h.007C24.842 31.91 32 24.754 32 15.915 32 7.077 24.842-.001 16.003-.001zm0 29.226h-.006a13.23 13.23 0 01-6.745-1.843l-.484-.288-5.01 1.193 1.24-4.887-.317-.502A13.205 13.205 0 012.693 15.99C2.693 8.617 8.627 2.684 16 2.684c7.372 0 13.307 5.933 13.307 13.306 0 7.374-5.935 13.236-13.304 13.236zm7.298-9.907c-.4-.2-2.366-1.167-2.732-1.3-.367-.132-.634-.2-.9.2-.267.4-1.033 1.3-1.267 1.566-.233.267-.467.3-.867.1-.4-.2-1.688-.622-3.215-1.984-1.19-1.06-1.993-2.37-2.226-2.77-.233-.4-.025-.616.175-.815.18-.178.4-.467.6-.7.2-.233.267-.4.4-.667.133-.266.067-.5-.033-.7-.1-.2-.9-2.167-1.233-2.967-.324-.779-.654-.673-.9-.686-.233-.012-.5-.015-.767-.015-.267 0-.7.1-1.067.5-.367.4-1.4 1.367-1.4 3.334s1.433 3.867 1.633 4.134c.2.267 2.82 4.306 6.833 6.035.954.413 1.699.66 2.28.845.957.305 1.829.262 2.517.159.768-.115 2.366-.967 2.7-1.9.333-.933.333-1.734.233-1.9-.1-.166-.367-.267-.767-.467z"/>
+                  </svg>
+                  <span>WhatsApp</span>
                 </button>
               </div>
             </Card>
