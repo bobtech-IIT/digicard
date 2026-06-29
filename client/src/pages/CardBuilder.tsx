@@ -11,7 +11,7 @@ import CardPreview from "@/components/CardPreview";
 import AISettings from "@/components/AISettings";
 import BrandAssets from "@/components/BrandAssets";
 import { useLocation } from "wouter";
-import { Sparkles, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, ClipboardCheck, Loader2, Key, Eye, PenLine, Wand2, Type, Bold, Italic, RefreshCw } from "lucide-react";
+import { Sparkles, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, ClipboardCheck, Loader2, Key, Eye, PenLine, Wand2, Type, Bold, Italic, RefreshCw, FileDown, FileImage, FileType, Contact } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import * as XLSX from "xlsx";
@@ -788,6 +788,89 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
     window.open(`https://wa.me/?text=${encoded}`, "_blank");
   };
 
+  // ── vCard (.vcf) download ──────────────────────────────────────────────────
+  const handleDownloadVCard = () => {
+    if (!cardData.name) { toast.error("Please enter a name before downloading the contact"); return; }
+    const nameParts = cardData.name.trim().split(" ");
+    const lastName = nameParts.pop() || "";
+    const firstName = nameParts.join(" ");
+    const lines = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      `N:${lastName};${firstName};;;`,
+      `FN:${cardData.name}`,
+      cardData.officeName ? `ORG:${cardData.officeName}` : "",
+      cardData.designation ? `TITLE:${cardData.designation}` : "",
+      cardData.phone ? `TEL;TYPE=CELL,VOICE:${cardData.phone}` : "",
+      cardData.email ? `EMAIL;TYPE=PREF,INTERNET:${cardData.email}` : "",
+      cardData.social?.website ? `URL:${cardData.social.website}` : "",
+      cardData.address ? `ADR;TYPE=WORK:;;${cardData.address};;;;` : "",
+      cardData.social?.linkedin ? `X-SOCIALPROFILE;type=linkedin:${cardData.social.linkedin}` : "",
+      cardData.social?.twitter ? `X-SOCIALPROFILE;type=twitter:${cardData.social.twitter}` : "",
+      cardData.social?.whatsapp ? `X-SOCIALPROFILE;type=whatsapp:${cardData.social.whatsapp}` : "",
+      "END:VCARD",
+    ].filter(Boolean).join("\r\n");
+    const blob = new Blob([lines], { type: "text/vcard;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${cardData.name.replace(/\s+/g, "_")}_contact.vcf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Contact card (.vcf) downloaded — open it to save to phone/email!");
+  };
+
+  // ── Single card export (PNG / PDF / SVG) ──────────────────────────────────
+  const [isExporting, setIsExporting] = useState<"png" | "pdf" | "svg" | null>(null);
+
+  const handleExportSingleCard = async (format: "png" | "pdf" | "svg") => {
+    const svgEl = document.querySelector("#digital-card-svg") as SVGSVGElement | null;
+    if (!svgEl) { toast.error("Card preview not found — please wait for the card to load"); return; }
+    setIsExporting(format);
+    const safeName = (cardData.name || "visiting_card").replace(/\s+/g, "_");
+    try {
+      if (format === "svg") {
+        const serializer = new XMLSerializer();
+        let svgStr = serializer.serializeToString(svgEl);
+        if (!svgStr.startsWith("<?xml")) svgStr = '<?xml version="1.0" standalone="no"?>\r\n' + svgStr;
+        const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url; link.download = `${safeName}.svg`;
+        document.body.appendChild(link); link.click();
+        document.body.removeChild(link); URL.revokeObjectURL(url);
+        toast.success("SVG exported! Scalable vector — perfect for print.");
+      } else if (format === "png") {
+        const pngUrl = await convertSvgToPngDataUrl(svgEl, 3);
+        const link = document.createElement("a");
+        link.href = pngUrl; link.download = `${safeName}_3x.png`;
+        document.body.appendChild(link); link.click();
+        document.body.removeChild(link);
+        toast.success("High-res PNG exported (3× resolution)!");
+      } else if (format === "pdf") {
+        const pngUrl = await convertSvgToPngDataUrl(svgEl, 2);
+        const vb = svgEl.viewBox?.baseVal;
+        const w = vb?.width || 800;
+        const h = vb?.height || 457;
+        const pdf = new jsPDF({
+          orientation: layoutType.startsWith("vertical") ? "portrait" : "landscape",
+          unit: "px",
+          format: [w, h],
+        });
+        pdf.addImage(pngUrl, "PNG", 0, 0, w, h);
+        pdf.save(`${safeName}.pdf`);
+        toast.success("PDF exported — print-ready quality!");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(`Export failed: ${String(err)}`);
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-teal-50 to-green-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -1223,6 +1306,61 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
               textBoxes={textBoxes}
               onTextBoxMove={(id, x, y) => setTextBoxes(prev => prev.map(tb => tb.id === id ? { ...tb, x, y } : tb))}
             />
+
+            {/* ── Export Panel ─────────────────────────────────────────── */}
+            <Card className="p-4 bg-white/80 border border-gray-100 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                    <Download size={15} className="text-teal-600" />
+                    Export &amp; Download
+                  </h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Download your card or save contact info</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {/* PNG */}
+                <button
+                  onClick={() => handleExportSingleCard("png")}
+                  disabled={isExporting !== null}
+                  className="flex flex-col items-center gap-1.5 p-3 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors disabled:opacity-50 group"
+                >
+                  {isExporting === "png" ? <Loader2 size={18} className="text-teal-600 animate-spin" /> : <FileImage size={18} className="text-teal-600 group-hover:scale-110 transition-transform" />}
+                  <span className="text-[11px] font-bold text-teal-800">PNG</span>
+                  <span className="text-[9px] text-teal-600">Hi-Res 3×</span>
+                </button>
+                {/* PDF */}
+                <button
+                  onClick={() => handleExportSingleCard("pdf")}
+                  disabled={isExporting !== null}
+                  className="flex flex-col items-center gap-1.5 p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors disabled:opacity-50 group"
+                >
+                  {isExporting === "pdf" ? <Loader2 size={18} className="text-red-500 animate-spin" /> : <FileDown size={18} className="text-red-500 group-hover:scale-110 transition-transform" />}
+                  <span className="text-[11px] font-bold text-red-700">PDF</span>
+                  <span className="text-[9px] text-red-500">Print Ready</span>
+                </button>
+                {/* SVG */}
+                <button
+                  onClick={() => handleExportSingleCard("svg")}
+                  disabled={isExporting !== null}
+                  className="flex flex-col items-center gap-1.5 p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition-colors disabled:opacity-50 group"
+                >
+                  {isExporting === "svg" ? <Loader2 size={18} className="text-purple-500 animate-spin" /> : <FileType size={18} className="text-purple-500 group-hover:scale-110 transition-transform" />}
+                  <span className="text-[11px] font-bold text-purple-700">SVG</span>
+                  <span className="text-[9px] text-purple-500">Vector</span>
+                </button>
+                {/* vCard */}
+                <button
+                  onClick={handleDownloadVCard}
+                  className="flex flex-col items-center gap-1.5 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors group"
+                >
+                  <Contact size={18} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                  <span className="text-[11px] font-bold text-blue-700">vCard</span>
+                  <span className="text-[9px] text-blue-500">Save Contact</span>
+                </button>
+              </div>
+            </Card>
+
           </div>
         </div>
 
@@ -1459,6 +1597,33 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                 >
                   Close
                 </Button>
+              </div>
+
+              {/* Quick export row inside share modal */}
+              <div className="border-t pt-3 mt-1">
+                <p className="text-xs text-gray-500 mb-2 font-semibold">Quick Export</p>
+                <div className="grid grid-cols-4 gap-2">
+                  <button onClick={() => handleExportSingleCard("png")}
+                    className="flex flex-col items-center gap-1 p-2 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors">
+                    <FileImage size={15} className="text-teal-600" />
+                    <span className="text-[10px] font-bold text-teal-700">PNG</span>
+                  </button>
+                  <button onClick={() => handleExportSingleCard("pdf")}
+                    className="flex flex-col items-center gap-1 p-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors">
+                    <FileDown size={15} className="text-red-500" />
+                    <span className="text-[10px] font-bold text-red-700">PDF</span>
+                  </button>
+                  <button onClick={() => handleExportSingleCard("svg")}
+                    className="flex flex-col items-center gap-1 p-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors">
+                    <FileType size={15} className="text-purple-500" />
+                    <span className="text-[10px] font-bold text-purple-700">SVG</span>
+                  </button>
+                  <button onClick={handleDownloadVCard}
+                    className="flex flex-col items-center gap-1 p-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+                    <Contact size={15} className="text-blue-500" />
+                    <span className="text-[10px] font-bold text-blue-700">vCard</span>
+                  </button>
+                </div>
               </div>
             </div>
           </DialogContent>
