@@ -883,7 +883,12 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
   };
 
   const handleShareWhatsApp = () => {
-    const message = `Check out my digital visiting card! Click to connect:\n\n${cardData.name}\n${cardData.designation}\n\n👉 ${getPublicShareURL()}`;
+    const shareUrl = getPublicShareURL();
+    if (!shareUrl) {
+      toast.error("Please save your card first to generate a shareable WhatsApp link");
+      return;
+    }
+    const message = `📇 *DIGITAL VISITING CARD*\n\n*Name:* ${cardData.name}\n*Mobile:* ${cardData.phone}\n*Email:* ${cardData.email}\n\nScan QR / View Profile to Save Contact & Download PDF:\n🔗 ${shareUrl}`;
     const encoded = encodeURIComponent(message);
     window.open(`https://wa.me/?text=${encoded}`, "_blank");
   };

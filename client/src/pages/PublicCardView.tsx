@@ -7,6 +7,9 @@ import { Card } from "@/components/ui/card";
 import { Download, UserPlus, Home, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import { jsPDF } from "jspdf";
+import { convertSvgToPngDataUrl } from "@/lib/export-utils";
+
 
 export default function PublicCardView() {
   const [, params] = useRoute("/card/:id");
@@ -85,34 +88,38 @@ export default function PublicCardView() {
     }
   }
 
-  // Map database aspectRatio to layoutType
-  let layoutType: "horizontal-no-photo" | "horizontal-with-photo" | "vertical-no-photo" | "vertical-with-photo" = "horizontal-no-photo";
-  if (card.aspectRatio === "3:4") {
-    layoutType = card.headshotUrl ? "vertical-with-photo" : "vertical-no-photo";
-  } else {
-    layoutType = card.headshotUrl ? "horizontal-with-photo" : "horizontal-no-photo";
-  }
+  // Overriding public page layout to ALWAYS render in vertical format design for scanning
+  const layoutType = card.headshotUrl ? "vertical-with-photo" : "vertical-no-photo";
 
-  // Generate VCF card download
+  // Generate standard VCF card download
   const handleSaveContact = () => {
     try {
-      const vcard = `BEGIN:VCARD
-VERSION:3.0
-FN:${card.name || ""}
-TITLE:${card.designation || ""}
-TEL:${card.phone || ""}
-EMAIL:${card.email || ""}
-ADR:;;${card.address || ""}
-ORG:${card.officeName || ""}
-NOTE:${card.officeDetails || ""}
-URL;TYPE=WEBSITE:${social.linkedin || ""}
-END:VCARD`;
+      const nameParts = (card.name || "").trim().split(" ");
+      const lastName = nameParts.pop() || "";
+      const firstName = nameParts.join(" ");
+
+      const vcard = [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        `N:${lastName};${firstName};;;`,
+        `FN:${card.name || ""}`,
+        card.officeName ? `ORG:${card.officeName}` : "",
+        card.designation ? `TITLE:${card.designation}` : "",
+        card.phone ? `TEL;TYPE=CELL,VOICE:${card.phone}` : "",
+        card.telephone ? `TEL;TYPE=WORK,VOICE:${card.telephone}` : "",
+        card.email ? `EMAIL;TYPE=PREF,INTERNET:${card.email}` : "",
+        social.website ? `URL:${social.website}` : "",
+        card.address ? `ADR;TYPE=WORK:;;${card.address};;;;` : "",
+        social.linkedin ? `X-SOCIALPROFILE;type=linkedin:${social.linkedin}` : "",
+        social.instagram ? `X-SOCIALPROFILE;type=instagram:${social.instagram}` : "",
+        "END:VCARD",
+      ].filter(Boolean).join("\r\n");
 
       const blob = new Blob([vcard], { type: "text/vcard;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${card.name.replace(/\s+/g, "_")}.vcf`;
+      link.download = `${card.name.replace(/\s+/g, "_")}_contact.vcf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -123,6 +130,39 @@ END:VCARD`;
       toast.error("Failed to download contact card");
     }
   };
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Generate printable PDF from vertical layouts
+  const handleDownloadPDF = async () => {
+    const svgEl = document.querySelector("#digital-card-svg") as SVGSVGElement | null;
+    if (!svgEl) {
+      toast.error("Card preview not found — please wait for page to fully load");
+      return;
+    }
+    setIsExporting(true);
+    const safeName = (card.name || "visiting_card").replace(/\s+/g, "_");
+    try {
+      const pngUrl = await convertSvgToPngDataUrl(svgEl, 2);
+      const vb = svgEl.viewBox?.baseVal;
+      const w = vb?.width || 514;
+      const h = vb?.height || 760;
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: [w, h],
+      });
+      pdf.addImage(pngUrl, "PNG", 0, 0, w, h);
+      pdf.save(`${safeName}.pdf`);
+      toast.success("PDF visiting card downloaded successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate PDF card");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-teal-50 to-green-50 p-4 md:p-8 flex flex-col items-center justify-center">
@@ -159,17 +199,32 @@ END:VCARD`;
 
         {/* Call to actions for mobile browser */}
         <div className="flex flex-col gap-3 px-4">
-          <Button
-            onClick={handleSaveContact}
-            className="bg-teal-700 hover:bg-teal-800 text-white font-bold py-6 rounded-xl shadow-md gap-2"
-          >
-            <UserPlus size={20} />
-            Save Contact to Phone
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              onClick={handleSaveContact}
+              className="bg-teal-700 hover:bg-teal-800 text-white font-bold py-6 rounded-xl shadow-md gap-2 text-xs"
+            >
+              <UserPlus size={16} />
+              Save Contact
+            </Button>
+            <Button
+              onClick={handleDownloadPDF}
+              disabled={isExporting}
+              className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-6 rounded-xl shadow-md gap-2 text-xs"
+            >
+              {isExporting ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Download size={16} />
+              )}
+              {isExporting ? "Downloading..." : "Download PDF"}
+            </Button>
+          </div>
+
           <Button
             variant="outline"
             onClick={() => window.location.href = "/card-builder"}
-            className="border-teal-200 text-teal-800 bg-white/70 hover:bg-teal-50 font-semibold py-6 rounded-xl"
+            className="border-teal-200 text-teal-800 bg-white/70 hover:bg-teal-50 font-semibold py-5 rounded-xl text-xs"
           >
             Create Your Own Digital Card
           </Button>
