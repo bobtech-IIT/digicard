@@ -39,7 +39,7 @@ export const cardRouter = router({
         name: z.string().min(1),
         designation: z.string().optional(),
         phone: z.string().optional(),
-        email: z.string().email().optional(),
+        email: z.string().optional(),
         address: z.string().optional(),
         officeName: z.string().optional(),
         officeDetails: z.string().optional(),

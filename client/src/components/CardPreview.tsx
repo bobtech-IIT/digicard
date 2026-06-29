@@ -139,6 +139,24 @@ export default function CardPreview({
 }: CardPreviewProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // Helper to split company/office names dynamically without character-clipping truncation
+  const getOfficeNameLines = (text: string, maxChars: number) => {
+    if (!text) return ["Company Name"];
+    const words = text.trim().split(/\s+/);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      if ((cur + " " + w).trim().length > maxChars) {
+        if (cur) lines.push(cur.trim());
+        cur = w;
+      } else {
+        cur = cur ? cur + " " + w : w;
+      }
+    }
+    if (cur) lines.push(cur.trim());
+    return lines.slice(0, 3);
+  };
+
   // ── Phase 2: resolve active theme + font pairing ──────────────────────────
   const activeTheme = resolveCardTheme(cardData.themeId || "classic-white", cardData.brandColors);
   const activeFontPairing: FontPairing =
@@ -678,14 +696,29 @@ export default function CardPreview({
       <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
         {/* Designation */}
         <text x="50" y="150" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.designation, 45) || "Head of Marketing"}</text>
-        {/* Thin separator line between Designation and Office Name */}
 
-        {/* Office Name */}
-        <text x="50" y="174" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={nameColor2} className="fc-body">{truncate(cardData.officeName, 40) || "Company Name"}</text>
-        {cardData.bio && cardData.bio.trim() && (
-          <text x="50" y="192" fontSize={10} fontWeight="400" fill={themeSubText} fontStyle="italic" className="fc-body" opacity="0.85">{truncate(cardData.bio, 80)}</text>
-        )}
-        {editorMode && <rect x="44" y="136" width="440" height="66" rx="6" className="drag-outline" />}
+        {/* Office Name (wrapped dynamically using getOfficeNameLines) */}
+        {(() => {
+          const officeLines = getOfficeNameLines(cardData.officeName, 60);
+          const bioY = 174 + (officeLines.length * 13);
+          return (
+            <>
+              <text x="50" y="174" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={nameColor2} className="fc-body">
+                {officeLines.map((line, idx) => (
+                  <tspan key={idx} x="50" dy={idx === 0 ? 0 : 13}>{line}</tspan>
+                ))}
+              </text>
+              {cardData.bio && cardData.bio.trim() && (
+                <text x="50" y={bioY} fontSize={10} fontWeight="400" fill={themeSubText} fontStyle="italic" className="fc-body" opacity="0.85">
+                  {truncate(cardData.bio, 80)}
+                </text>
+              )}
+              {editorMode && (
+                <rect x="44" y="136" width="440" height={48 + (officeLines.length * 13) + (cardData.bio ? 18 : 0)} rx="6" className="drag-outline" />
+              )}
+            </>
+          );
+        })()}
       </g>
 
       {/* ── Contact Row: Mobile | Phone | Email | Website ── */}
@@ -741,13 +774,26 @@ export default function CardPreview({
 
         {/* Address bottom-left */}
         {scaledGroup("address", <>
-          {editorMode && <rect x="40" y="268" width="430" height="50" rx="6" className="drag-outline" />}
-          <path d={ICONS.mapPin} fill={activeTheme.iconBg} transform="translate(48,275) scale(0.72)" />
-          <text x="72" y="286" fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
-          {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 72, 302, 55, 13,
-            { fontSize: 9.5, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
-
-      </>)}
+          {(() => {
+            const officeLines = getOfficeNameLines(cardData.officeName || "Company Name Pvt. Ltd.", 45);
+            const addressY = 286 + (officeLines.length * 11);
+            return (
+              <>
+                <path d={ICONS.mapPin} fill={activeTheme.iconBg} transform="translate(48,275) scale(0.72)" />
+                <text x="72" y="286" fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">
+                  {officeLines.map((line, idx) => (
+                    <tspan key={idx} x="72" dy={idx === 0 ? 0 : 11}>{line}</tspan>
+                  ))}
+                </text>
+                {multiline(cardData.address || "Data Missing", 72, addressY + 4, 55, 13,
+                  { fontSize: 9.5, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
+                {editorMode && (
+                  <rect x="40" y="268" width="430" height={32 + (officeLines.length * 11) + 20} rx="6" className="drag-outline" />
+                )}
+              </>
+            );
+          })()}
+        </>)}
 
       {/* ── Social icons row ── */}
       {/* Divider line is FIXED — outside the scaledGroup so it doesn't scale */}
@@ -856,11 +902,23 @@ export default function CardPreview({
       <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
         {/* Designation */}
         <text x="310" y="133" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.designation, 35) || "Head of Marketing"}</text>
-        {/* Thin separator line between Designation and Office Name */}
 
-        {/* Office Name */}
-        <text x="310" y="157" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={nameColor2} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
-        {editorMode && <rect x="304" y="118" width="340" height="48" rx="6" className="drag-outline" />}
+        {/* Office Name (wrapped dynamically using getOfficeNameLines) */}
+        {(() => {
+          const officeLines = getOfficeNameLines(cardData.officeName, 40);
+          return (
+            <>
+              <text x="310" y="157" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={nameColor2} className="fc-body">
+                {officeLines.map((line, idx) => (
+                  <tspan key={idx} x="310" dy={idx === 0 ? 0 : 13}>{line}</tspan>
+                ))}
+              </text>
+              {editorMode && (
+                <rect x="304" y="118" width="340" height={32 + (officeLines.length * 13)} rx="6" className="drag-outline" />
+              )}
+            </>
+          );
+        })()}
       </g>
 
       {/* ── Contacts (stacked: Mobile, Phone, Email, Website) — NO address here, address has its own section below ── */}
@@ -915,12 +973,25 @@ export default function CardPreview({
       {/* ── Bottom bar: Address + Socials ── */}
       <line x1="50" y1="350" x2="750" y2="350" stroke="url(#dividerGrad)" strokeWidth="1.5" />
       {scaledGroup("address", <>
-        {editorMode && <rect x="44" y="350" width="710" height="90" rx="6" className="drag-outline" />}
-        <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(53,359) scale(0.75)" />
-        <text x="75" y="370" fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
-        {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 75, 386, 50, 13,
-          { fontSize: 9, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
-
+        {(() => {
+          const officeLines = getOfficeNameLines(cardData.officeName || "Company Name Pvt. Ltd.", 45);
+          const addressY = 370 + (officeLines.length * 11);
+          return (
+            <>
+              <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(53,359) scale(0.75)" />
+              <text x="75" y="370" fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">
+                {officeLines.map((line, idx) => (
+                  <tspan key={idx} x="75" dy={idx === 0 ? 0 : 11}>{line}</tspan>
+                ))}
+              </text>
+              {multiline(cardData.address || "Data Missing", 75, addressY + 4, 50, 13,
+                { fontSize: 9, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
+              {editorMode && (
+                <rect x="44" y="350" width="710" height={32 + (officeLines.length * 11) + 25} rx="6" className="drag-outline" />
+              )}
+            </>
+          );
+        })()}
       </>)}
       {scaledGroup("socials", <>
         <SocialIcon cx={437} cy={390} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WhatsApp" />
@@ -1018,11 +1089,25 @@ export default function CardPreview({
         <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
           {/* Designation */}
           <text x="38" y={hasPhoto ? 225 : 255} fontSize={offsets.designation?.fontSize || 14} fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.designation, 32) || "Head of Marketing"}</text>
-          {/* Thin separator line */}
 
-          {/* Office Name */}
-          <text x="38" y={hasPhoto ? 250 : 280} fontSize={(offsets.designation?.fontSize || 14) - 1} fontWeight="600" fill={nameColor2} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
-          {editorMode && <rect x="32" y={hasPhoto ? 210 : 240} width="440" height="50" rx="6" className="drag-outline" />}
+          {/* Office Name (wrapped dynamically using getOfficeNameLines) */}
+          {(() => {
+            const limit = hasPhoto ? 28 : 45;
+            const officeLines = getOfficeNameLines(cardData.officeName, limit);
+            const startY = hasPhoto ? 250 : 280;
+            return (
+              <>
+                <text x="38" y={startY} fontSize={(offsets.designation?.fontSize || 14) - 1} fontWeight="600" fill={nameColor2} className="fc-body">
+                  {officeLines.map((line, idx) => (
+                    <tspan key={idx} x="38" dy={idx === 0 ? 0 : 13}>{line}</tspan>
+                  ))}
+                </text>
+                {editorMode && (
+                  <rect x="32" y={hasPhoto ? 210 : 240} width="440" height={32 + (officeLines.length * 13)} rx="6" className="drag-outline" />
+                )}
+              </>
+            );
+          })()}
         </g>
 
         {/* Separator — gradient */}

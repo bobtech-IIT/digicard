@@ -143,7 +143,8 @@ export default function PublicCardView() {
     setIsExporting(true);
     const safeName = (card.name || "visiting_card").replace(/\s+/g, "_");
     try {
-      const pngUrl = await convertSvgToPngDataUrl(svgEl, 2);
+      // High-res print scale = 4 (guarantees pixel-perfect matching and no pixelation)
+      const pngUrl = await convertSvgToPngDataUrl(svgEl, 4);
       const vb = svgEl.viewBox?.baseVal;
       const w = vb?.width || 514;
       const h = vb?.height || 760;
@@ -151,6 +152,7 @@ export default function PublicCardView() {
         orientation: "portrait",
         unit: "px",
         format: [w, h],
+        compress: true
       });
       pdf.addImage(pngUrl, "PNG", 0, 0, w, h);
       pdf.save(`${safeName}.pdf`);

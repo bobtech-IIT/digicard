@@ -301,6 +301,7 @@ export default function CardBuilder() {
   };
 
   const handleInputChange = (field: string, value: string) => {
+    setSavedCardId(null); // Reset saved state on edits to enforce fresh save
     if (field.includes(".")) {
       const [parent, child] = field.split(".");
       setCardData((prev) => {
@@ -328,6 +329,7 @@ export default function CardBuilder() {
     logo: string | null;
     colors: { primary: string; secondary: string };
   }) => {
+    setSavedCardId(null); // Reset saved state on edits to enforce fresh save
     setCardData((prev) => ({
       ...prev,
       brandLogo: brandData.logo,
@@ -495,9 +497,9 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
     if (selectedTextBoxId === id) setSelectedTextBoxId(null);
   };
 
-  // Map a row to the card inputs
   const selectCandidateRow = (row: any, index: number) => {
     setSelectedRowIndex(index);
+    setSavedCardId(null); // Reset saved state on new row selection
     const headers = Object.keys(row);
 
     const getColVal = (expectedList: string[]): string => {
@@ -859,14 +861,53 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
           // localStorage may be full — images won't persist but card saves fine
         }
         setSavedCardId(result.id);
+        
+        // Immediately sync saved details to candidate row in spreadsheet list
+        if (selectedRowIndex !== null) {
+          setDashboardRows((prev) => {
+            const updated = [...prev];
+            const row = { ...updated[selectedRowIndex] };
+            const headers = Object.keys(row);
+            
+            const setColVal = (expectedList: string[], value: string) => {
+              const match = headers.find(h => expectedList.includes(h.toLowerCase()));
+              if (match) {
+                row[match] = value;
+              }
+            };
+            
+            setColVal(EXPECTED_HEADERS.name, cardData.name);
+            setColVal(EXPECTED_HEADERS.designation, cardData.designation);
+            setColVal(EXPECTED_HEADERS.phone, cardData.phone);
+            setColVal(EXPECTED_HEADERS.email, cardData.email);
+            setColVal(EXPECTED_HEADERS.address, cardData.address);
+            setColVal(EXPECTED_HEADERS.officeName, cardData.officeName);
+            setColVal(EXPECTED_HEADERS.officeDetails, cardData.officeDetails);
+            
+            setColVal(EXPECTED_HEADERS.linkedin, cardData.social.linkedin);
+            setColVal(EXPECTED_HEADERS.twitter, cardData.social.twitter);
+            setColVal(EXPECTED_HEADERS.instagram, cardData.social.instagram);
+            setColVal(EXPECTED_HEADERS.facebook, cardData.social.facebook);
+            setColVal(EXPECTED_HEADERS.youtube, cardData.social.youtube);
+            setColVal(EXPECTED_HEADERS.github, cardData.social.github);
+            setColVal(EXPECTED_HEADERS.tiktok, cardData.social.tiktok);
+            setColVal(EXPECTED_HEADERS.whatsapp, cardData.social.whatsapp);
+            setColVal(EXPECTED_HEADERS.website, cardData.social.website);
+            setColVal(EXPECTED_HEADERS.telephone, cardData.telephone);
+            
+            updated[selectedRowIndex] = row;
+            return updated;
+          });
+        }
+
         setShareModalOpen(true);
         toast.success("Card saved successfully!");
       } else {
-        toast.error("Failed to save card");
+        toast.error("Failed to save card — server rejected request");
       }
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save card — check your internet connection");
+      toast.error(`Failed to save card: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsSaving(false);
     }
@@ -955,7 +996,8 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
         document.body.removeChild(link);
         toast.success("High-res PNG exported (3× resolution)!");
       } else if (format === "pdf") {
-        const pngUrl = await convertSvgToPngDataUrl(svgEl, 2);
+        // High-res print scale = 4 (guarantees pixel-perfect matching and no pixelation)
+        const pngUrl = await convertSvgToPngDataUrl(svgEl, 4);
         const vb = svgEl.viewBox?.baseVal;
         const w = vb?.width || 800;
         const h = vb?.height || 457;
@@ -963,6 +1005,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
           orientation: layoutType.startsWith("vertical") ? "portrait" : "landscape",
           unit: "px",
           format: [w, h],
+          compress: true
         });
         pdf.addImage(pngUrl, "PNG", 0, 0, w, h);
         pdf.save(`${safeName}.pdf`);
