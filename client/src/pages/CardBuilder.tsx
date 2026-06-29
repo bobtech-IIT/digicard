@@ -1343,7 +1343,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                   disabled={isExporting !== null}
                   className="flex items-center gap-1.5 px-4 py-2 bg-[#006d4e] hover:bg-[#00583f] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
                 >
-                  <FileDown size={13} />
+                  <Download size={13} className="shrink-0" />
                   <span>SVG</span>
                 </button>
 
@@ -1353,7 +1353,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                   disabled={isExporting !== null}
                   className="flex items-center gap-1.5 px-4 py-2 bg-[#007361] hover:bg-[#005e4f] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
                 >
-                  <FileImage size={13} />
+                  <Download size={13} className="shrink-0" />
                   <span>PNG</span>
                 </button>
 
@@ -1363,7 +1363,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                   disabled={isExporting !== null}
                   className="flex items-center gap-1.5 px-4 py-2 bg-[#006e90] hover:bg-[#005772] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
                 >
-                  <FileDown size={13} />
+                  <Download size={13} className="shrink-0" />
                   <span>PDF</span>
                 </button>
 
