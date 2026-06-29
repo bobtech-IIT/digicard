@@ -1,6 +1,7 @@
 import { useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import CardPreview from "@/components/CardPreview";
+import { resolveCardTheme } from "@/components/ThemeSelector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Download, UserPlus, Home, Loader2 } from "lucide-react";

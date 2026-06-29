@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { CARD_THEMES, FONT_PAIRINGS, type CardTheme, type FontPairing } from "./ThemeSelector";
+import { CARD_THEMES, FONT_PAIRINGS, resolveCardTheme, type CardTheme, type FontPairing } from "./ThemeSelector";
 
 import { Button } from "@/components/ui/button";
 import { Download, MessageCircle, Move, Settings } from "lucide-react";
