@@ -875,31 +875,58 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
   const getPublicShareURL = (): string => {
     if (!savedCardId) return "";
     
-    // Package all card builder state including layouts, texts, custom themes/colors, offsets, etc.
-    // We omit large raw base64 images from the URL parameter to prevent QR code size overflows.
-    const dataObj = {
+    // Filter empty social links
+    const cleanSocial: Record<string, string> = {};
+    if (cardData.social) {
+      Object.entries(cardData.social).forEach(([key, val]) => {
+        if (val && val.trim() !== "") {
+          cleanSocial[key] = val.trim();
+        }
+      });
+    }
+
+    // Filter empty fields, only include defined/non-empty properties
+    const cleanData: Record<string, any> = {
       name: cardData.name,
-      designation: cardData.designation,
-      phone: cardData.phone,
-      email: cardData.email,
-      address: cardData.address,
-      officeName: cardData.officeName,
-      officeDetails: cardData.officeDetails,
-      bio: cardData.bio,
-      social: cardData.social,
-      brandColors: cardData.brandColors,
-      themeId: cardData.themeId,
-      fontPairingId: cardData.fontPairingId,
-      customBg: cardData.customBg,
-      customTextColor: cardData.customTextColor,
-      telephone: cardData.telephone,
-      layoutType,
-      offsets,
-      textBoxes
     };
+
+    const optFields: Array<keyof CardData> = [
+      "designation", "phone", "email", "address", "officeName", 
+      "officeDetails", "bio", "telephone", "themeId", "fontPairingId",
+      "customBg", "customTextColor"
+    ];
+
+    optFields.forEach(f => {
+      const val = cardData[f];
+      if (typeof val === "string" && val.trim() !== "") {
+        cleanData[f as string] = val.trim();
+      } else if (val) {
+        cleanData[f as string] = val;
+      }
+    });
+
+    if (Object.keys(cleanSocial).length > 0) {
+      cleanData.social = cleanSocial;
+    }
+
+    if (cardData.brandColors && (cardData.brandColors.primary !== "#047857" || cardData.brandColors.secondary !== "#0d9488")) {
+      cleanData.brandColors = cardData.brandColors;
+    }
+
+    if (layoutType !== "horizontal-no-photo") {
+      cleanData.layoutType = layoutType;
+    }
+
+    if (offsets && Object.keys(offsets).length > 0) {
+      cleanData.offsets = offsets;
+    }
+
+    if (textBoxes && textBoxes.length > 0) {
+      cleanData.textBoxes = textBoxes;
+    }
     
     try {
-      const json = JSON.stringify(dataObj);
+      const json = JSON.stringify(cleanData);
       const utf8Bytes = new TextEncoder().encode(json);
       let binary = "";
       for (let i = 0; i < utf8Bytes.length; i++) {
@@ -2244,10 +2271,13 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
               </p>
 
               {/* Shareable link row */}
-              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-                <span className="text-[11px] font-mono text-gray-500 overflow-hidden text-ellipsis whitespace-nowrap flex-1">
-                  {getPublicShareURL()}
-                </span>
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 min-w-0">
+                <input
+                  type="text"
+                  readOnly
+                  value={getPublicShareURL()}
+                  className="text-[11px] font-mono text-gray-500 bg-transparent border-none outline-none flex-1 min-w-0 overflow-hidden"
+                />
                 <button
                   onClick={handleCopyLink}
                   className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1.5 rounded-lg transition-colors active:scale-95"
