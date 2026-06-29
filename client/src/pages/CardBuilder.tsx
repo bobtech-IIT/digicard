@@ -1336,50 +1336,58 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                 </div>
                 <span className="text-[10px] text-gray-400 font-medium">PNG, PDF, SVG, vCard &amp; Share</span>
               </div>
-              <div className="flex flex-wrap gap-2 pt-0.5">
+              <div className="flex items-center justify-between w-full pt-1">
                 {/* SVG */}
                 <button
                   onClick={() => handleExportSingleCard("svg")}
                   disabled={isExporting !== null}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#006d4e] hover:bg-[#00583f] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#006d4e] hover:bg-[#00583f] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm"
                 >
                   <Download size={13} className="shrink-0" />
                   <span>SVG</span>
                 </button>
 
+                <div className="h-6 w-[1.5px] bg-gray-200 mx-2" />
+
                 {/* PNG */}
                 <button
                   onClick={() => handleExportSingleCard("png")}
                   disabled={isExporting !== null}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#007361] hover:bg-[#005e4f] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#007361] hover:bg-[#005e4f] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm"
                 >
                   <Download size={13} className="shrink-0" />
                   <span>PNG</span>
                 </button>
 
+                <div className="h-6 w-[1.5px] bg-gray-200 mx-2" />
+
                 {/* PDF */}
                 <button
                   onClick={() => handleExportSingleCard("pdf")}
                   disabled={isExporting !== null}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#006e90] hover:bg-[#005772] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm shrink-0"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#006e90] hover:bg-[#005772] text-white text-xs font-bold rounded-full transition-all disabled:opacity-50 active:scale-95 shadow-sm"
                 >
                   <Download size={13} className="shrink-0" />
                   <span>PDF</span>
                 </button>
 
+                <div className="h-6 w-[1.5px] bg-gray-200 mx-2" />
+
                 {/* vCard */}
                 <button
                   onClick={handleDownloadVCard}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#005fa3] hover:bg-[#004c82] text-white text-xs font-bold rounded-full transition-all active:scale-95 shadow-sm shrink-0"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#005fa3] hover:bg-[#004c82] text-white text-xs font-bold rounded-full transition-all active:scale-95 shadow-sm"
                 >
-                  <Contact size={13} />
+                  <Contact size={13} className="shrink-0" />
                   <span>vCard</span>
                 </button>
+
+                <div className="h-6 w-[1.5px] bg-gray-200 mx-2" />
 
                 {/* WhatsApp */}
                 <button
                   onClick={handleShareWhatsApp}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#00a859] hover:bg-[#008f4c] text-white text-xs font-bold rounded-full transition-all active:scale-95 shadow-sm shrink-0"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#00a859] hover:bg-[#008f4c] text-white text-xs font-bold rounded-full transition-all active:scale-95 shadow-sm"
                 >
                   {/* Official WhatsApp icon SVG */}
                   <svg viewBox="0 0 32 32" className="w-3.5 h-3.5 fill-white shrink-0" xmlns="http://www.w3.org/2000/svg">
