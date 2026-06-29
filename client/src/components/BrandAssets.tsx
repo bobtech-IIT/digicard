@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { extractPaletteFromImage } from "@/lib/colorExtractor";
 
 interface BrandAssetsProps {
   onBrandUpdate: (brandData: {
@@ -14,78 +15,7 @@ interface BrandAssetsProps {
   currentBrandColors?: { primary: string; secondary: string };
 }
 
-/**
- * Client-side dominant color extraction from a base64 image.
- * Renders the image onto a hidden canvas, samples pixels, and returns
- * the most saturated dominant color.
- */
-function extractDominantColor(base64: string): Promise<{ primary: string; secondary: string }> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const size = Math.min(img.naturalWidth || 64, img.naturalHeight || 64, 128);
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        resolve({ primary: "#047857", secondary: "#0d9488" });
-        return;
-      }
-      ctx.drawImage(img, 0, 0, size, size);
-      const data = ctx.getImageData(0, 0, size, size).data;
 
-      // Accumulate color buckets (divide into 8 buckets per channel)
-      const buckets: Map<string, { r: number; g: number; b: number; count: number }> = new Map();
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
-        if (a < 128) continue; // skip transparent
-        if (r > 230 && g > 230 && b > 230) continue; // skip near-white
-        if (r < 20 && g < 20 && b < 20) continue; // skip near-black
-        const key = `${Math.floor(r / 32)},${Math.floor(g / 32)},${Math.floor(b / 32)}`;
-        const entry = buckets.get(key) || { r: 0, g: 0, b: 0, count: 0 };
-        entry.r += r; entry.g += g; entry.b += b; entry.count++;
-        buckets.set(key, entry);
-      }
-
-      if (buckets.size === 0) {
-        resolve({ primary: "#047857", secondary: "#0d9488" });
-        return;
-      }
-
-      // Find the most saturated dominant bucket
-      let bestEntry = { r: 4, g: 120, b: 87, count: 1 };
-      let bestSaturation = 0;
-      for (const entry of buckets.values()) {
-        const avg_r = entry.r / entry.count;
-        const avg_g = entry.g / entry.count;
-        const avg_b = entry.b / entry.count;
-        const max = Math.max(avg_r, avg_g, avg_b);
-        const min = Math.min(avg_r, avg_g, avg_b);
-        const saturation = max > 0 ? (max - min) / max : 0;
-        // Weight by saturation × count
-        const score = saturation * entry.count;
-        if (score > bestSaturation) { bestSaturation = score; bestEntry = entry; }
-      }
-
-      const r = Math.round(bestEntry.r / bestEntry.count);
-      const g = Math.round(bestEntry.g / bestEntry.count);
-      const b = Math.round(bestEntry.b / bestEntry.count);
-
-      const primary = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-      // Secondary: darker shade by mixing with black
-      const rs = Math.round(r * 0.75);
-      const gs = Math.round(g * 0.75);
-      const bs = Math.round(b * 0.75);
-      const secondary = `#${rs.toString(16).padStart(2, "0")}${gs.toString(16).padStart(2, "0")}${bs.toString(16).padStart(2, "0")}`;
-
-      resolve({ primary, secondary });
-    };
-    img.onerror = () => resolve({ primary: "#047857", secondary: "#0d9488" });
-    img.src = base64;
-  });
-}
 
 /**
  * Canvas-based background remover.
@@ -188,17 +118,27 @@ export default function BrandAssets({
     reader.onload = async (event) => {
       const raw = event.target?.result as string;
       toast.loading("Removing background…", { id: "logo-bg" });
+      let finalLogo = raw;
       try {
         // Always run background removal — works on white, light grey, any solid bg
-        const result = await removeBackground(raw);
-        setLogoPreview(result);
-        onBrandUpdate({ logo: result, colors: { primary: primaryColor, secondary: secondaryColor } });
+        finalLogo = await removeBackground(raw);
+        setLogoPreview(finalLogo);
         toast.success("Logo uploaded with background removed!", { id: "logo-bg" });
       } catch {
-        // Fallback: use original
         setLogoPreview(raw);
-        onBrandUpdate({ logo: raw, colors: { primary: primaryColor, secondary: secondaryColor } });
         toast.success("Logo uploaded!", { id: "logo-bg" });
+      }
+
+      // Automatically run Color Extraction right after upload completes
+      try {
+        const palette = await extractPaletteFromImage(finalLogo);
+        setPrimaryColor(palette.primary);
+        setSecondaryColor(palette.secondary);
+        onBrandUpdate({ logo: finalLogo, colors: { primary: palette.primary, secondary: palette.secondary } });
+        toast.success(`Auto-extracted brand colors! Primary: ${palette.primary}`);
+      } catch (err) {
+        console.warn("Failed to extract brand colors from logo automatically", err);
+        onBrandUpdate({ logo: finalLogo, colors: { primary: primaryColor, secondary: secondaryColor } });
       }
     };
     reader.readAsDataURL(file);
@@ -223,11 +163,11 @@ export default function BrandAssets({
     if (!logoPreview) { toast.error("Please upload a logo first"); return; }
     setIsAnalyzing(true);
     try {
-      const colors = await extractDominantColor(logoPreview);
-      setPrimaryColor(colors.primary);
-      setSecondaryColor(colors.secondary);
-      onBrandUpdate({ logo: logoPreview, colors });
-      toast.success(`Brand colors extracted! Primary: ${colors.primary}`);
+      const palette = await extractPaletteFromImage(logoPreview);
+      setPrimaryColor(palette.primary);
+      setSecondaryColor(palette.secondary);
+      onBrandUpdate({ logo: logoPreview, colors: { primary: palette.primary, secondary: palette.secondary } });
+      toast.success(`Brand colors extracted! Primary: ${palette.primary}`);
     } catch (err) {
       console.error(err);
       toast.error("Could not extract colors. Please set them manually.");
