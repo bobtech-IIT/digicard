@@ -51,68 +51,75 @@ export function resolveCardTheme(
     case "luxury-gold": // Premium
       return {
         id: "luxury-gold",
-        name: "Luxury Black",
+        name: "Premium Metal",
         tag: "Premium",
-        bg: "#0a0a0a",
+        bg: "#2e353b",
         bgGradient: `<linearGradient id="luxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#0a0a0a"/>
-          <stop offset="50%" stopColor="#1a1a2e"/>
-          <stop offset="100%" stopColor="#0a0a0a"/>
+          <stop offset="0%" stopColor="#1e2226"/>
+          <stop offset="25%" stopColor="#5c6570"/>
+          <stop offset="50%" stopColor="#b8c0c9"/>
+          <stop offset="75%" stopColor="#5c6570"/>
+          <stop offset="100%" stopColor="#131619"/>
         </linearGradient>`,
         bgGradientId: "luxGrad",
         accentStrip: primary,
         nameColor1: "#ffffff",
-        nameColor2: primary,
+        nameColor2: "#cfd6df",
         accentLine: primary,
-        bodyText: "#e5e7eb",
-        subText: "#9ca3af",
-        divider: "#374151",
+        bodyText: "#f3f4f6",
+        subText: "#cbd5e1",
+        divider: "#4b5563",
         iconBg: primary,
-        previewGradient: `linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)`,
+        previewGradient: `linear-gradient(135deg, #1e2226 0%, #5c6570 50%, #b8c0c9 100%)`,
         textStyle: "light",
       };
 
     case "cyber-gradient": // Tech
       return {
         id: "cyber-gradient",
-        name: "Cyber Dark",
+        name: "Glassmorphic Tech",
         tag: "Tech",
-        bg: "#0f172a",
+        bg: "#1A1C19",
         bgGradient: `<linearGradient id="cyberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#0f172a"/>
-          <stop offset="55%" stopColor="#1e1b4b"/>
-          <stop offset="100%" stopColor="#0f172a"/>
+          <stop offset="0%" stopColor="#1A1C19"/>
+          <stop offset="50%" stopColor="#2D5A27"/>
+          <stop offset="100%" stopColor="#84B643"/>
         </linearGradient>`,
         bgGradientId: "cyberGrad",
-        accentStrip: primary,
-        nameColor1: "#f8fafc",
-        nameColor2: primary,
-        accentLine: primary,
-        bodyText: "#e2e8f0",
-        subText: "#94a3b8",
-        divider: "#1e293b",
+        accentStrip: secondary,
+        nameColor1: "#ffffff",
+        nameColor2: "#cbd5e1",
+        accentLine: secondary,
+        bodyText: "#f9fafb",
+        subText: "#cbd5e1",
+        divider: "#2d3748",
         iconBg: primary,
-        previewGradient: `linear-gradient(135deg, #0f172a 0%, #1e1b4b 55%, #164e63 100%)`,
+        previewGradient: `linear-gradient(135deg, #1A1C19 0%, #2D5A27 50%, #84B643 100%)`,
         textStyle: "light",
       };
 
     case "neo-brutalist": // Bold
-      const textContrast = getContrast(primary);
       return {
         id: "neo-brutalist",
-        name: "Neo Brutalist",
+        name: "Multicolor Glass",
         tag: "Bold",
-        bg: primary,
-        accentStrip: textContrast,
-        nameColor1: textContrast,
-        nameColor2: secondary,
-        accentLine: textContrast,
-        bodyText: textContrast,
-        subText: textContrast === "#ffffff" ? "#cbd5e1" : "#4b5563",
-        divider: textContrast,
-        iconBg: textContrast,
-        previewGradient: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`,
-        textStyle: textContrast === "#ffffff" ? "light" : "dark",
+        bg: "#84B643",
+        bgGradient: `<linearGradient id="boldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#84B643"/>
+          <stop offset="50%" stopColor="#F9F8F4"/>
+          <stop offset="100%" stopColor="#2D5A27"/>
+        </linearGradient>`,
+        bgGradientId: "boldGrad",
+        accentStrip: primary,
+        nameColor1: "#1A1C19",
+        nameColor2: primary,
+        accentLine: primary,
+        bodyText: "#1A1C19",
+        subText: "#4b5563",
+        divider: primary,
+        iconBg: primary,
+        previewGradient: `linear-gradient(135deg, #84B643 0%, #F9F8F4 50%, #2D5A27 100%)`,
+        textStyle: "dark",
       };
 
     case "eco-green": // Natural
@@ -162,9 +169,9 @@ export function resolveCardTheme(
 // Static definition list for names only (fallback)
 export const CARD_THEMES: { id: string; name: string; tag: string }[] = [
   { id: "classic-white", name: "Classic White", tag: "Clean" },
-  { id: "luxury-gold", name: "Luxury Black", tag: "Premium" },
-  { id: "cyber-gradient", name: "Cyber Dark", tag: "Tech" },
-  { id: "neo-brutalist", name: "Neo Brutalist", tag: "Bold" },
+  { id: "luxury-gold", name: "Premium Metal", tag: "Premium" },
+  { id: "cyber-gradient", name: "Glassmorphic Tech", tag: "Tech" },
+  { id: "neo-brutalist", name: "Multicolor Glass", tag: "Bold" },
   { id: "eco-green", name: "Eco Forest", tag: "Natural" },
 ];
 

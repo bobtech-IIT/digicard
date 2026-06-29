@@ -490,14 +490,21 @@ export default function CardPreview({
       `}</style>
       {/* Statically define background gradients so they always load correctly */}
       <linearGradient id="luxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#0a0a0a"/>
-        <stop offset="50%" stopColor="#1a1a2e"/>
-        <stop offset="100%" stopColor="#0a0a0a"/>
+        <stop offset="0%" stopColor="#1e2226"/>
+        <stop offset="25%" stopColor="#5c6570"/>
+        <stop offset="50%" stopColor="#b8c0c9"/>
+        <stop offset="75%" stopColor="#5c6570"/>
+        <stop offset="100%" stopColor="#131619"/>
       </linearGradient>
       <linearGradient id="cyberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#0f172a"/>
-        <stop offset="55%" stopColor="#1e1b4b"/>
-        <stop offset="100%" stopColor="#0f172a"/>
+        <stop offset="0%" stopColor="#1A1C19"/>
+        <stop offset="50%" stopColor="#2D5A27"/>
+        <stop offset="100%" stopColor="#84B643"/>
+      </linearGradient>
+      <linearGradient id="boldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#84B643"/>
+        <stop offset="50%" stopColor="#F9F8F4"/>
+        <stop offset="100%" stopColor="#2D5A27"/>
       </linearGradient>
       <linearGradient id="ecoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#F4F2EC"/>
