@@ -35,6 +35,7 @@ interface CardData {
   };
   themeId?: string;        // Phase 2: selected card theme ID
   fontPairingId?: string;  // Phase 2: selected font pairing ID
+  telephone?: string;
 }
 
 interface TextBox {
@@ -657,42 +658,54 @@ export default function CardPreview({
         {editorMode && <rect x="44" y="136" width="440" height="66" rx="6" className="drag-outline" />}
       </g>
 
-      {/* ── Contact Row: Phone | WhatsApp | Email ── */}
+      {/* ── Contact Row: Mobile | Phone | Email | Website ── */}
       {scaledGroup("contacts", <>
-        {editorMode && <rect x="40" y="190" width="560" height="65" rx="6" className="drag-outline" />}
+        {editorMode && <rect x="40" y="190" width="580" height="65" rx="6" className="drag-outline" />}
         {/* Separator line */}
         <line x1="50" y1="195" x2="620" y2="195" stroke="#e5e7eb" strokeWidth="1" />
 
-        {/* Phone */}
+        {/* Mobile */}
         <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="72" cy="225" r="16" fill={activeTheme.iconBg} />
-          <path d={ICONS.phone} fill="#fff" transform="translate(63.5,216.5) scale(0.7)" />
-          <text x="98" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">PHONE</text>
-          <text x="98" y="232" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 28) || "Data Missing"}</text>
+          <circle cx="72" cy="225" r="15" fill={activeTheme.iconBg} />
+          <path d={ICONS.phone} fill="#fff" transform="translate(64.5,217.5) scale(0.625)" />
+          <text x="96" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">MOBILE</text>
+          <text x="96" y="232" fontSize="10" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 18) || "Data Missing"}</text>
         </a>
 
         {/* Divider */}
-        <line x1="220" y1="208" x2="220" y2="245" stroke={themeDivider} strokeWidth="1" />
+        <line x1="185" y1="208" x2="185" y2="242" stroke={themeDivider} strokeWidth="1" />
 
-        {/* WhatsApp */}
-        <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="248" cy="225" r="16" fill={activeTheme.iconBg} />
-          <path d={ICONS.whatsapp} fill="#fff" transform="translate(239.5,216.5) scale(0.7)" />
-          <text x="274" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">WHATSAPP</text>
-          <text x="274" y="232" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 22) || "Data Missing"}</text>
+        {/* Phone */}
+        <a href={`tel:${cardData.telephone || ""}`} target="_blank" rel="noopener noreferrer">
+          <circle cx="207" cy="225" r="15" fill={activeTheme.iconBg} />
+          <path d={ICONS.phone} fill="#fff" transform="translate(199.5,217.5) scale(0.625)" />
+          <text x="231" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">PHONE</text>
+          <text x="231" y="232" fontSize="10" fontWeight="600" fill={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.telephone, 18) || "Data Missing"}</text>
         </a>
 
         {/* Divider */}
-        <line x1="410" y1="208" x2="410" y2="245" stroke={themeDivider} strokeWidth="1" />
+        <line x1="325" y1="208" x2="325" y2="242" stroke={themeDivider} strokeWidth="1" />
 
         {/* Email */}
         <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="438" cy="225" r="16" fill={activeTheme.iconBg} />
-          <path d={ICONS.email} fill="#fff" transform="translate(429.5,216.5) scale(0.7)" />
-          <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform="translate(429.5,216.5) scale(0.7)" />
-          <text x="464" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">EMAIL</text>
-          <text x="464" y="232" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.email, 30) || "Data Missing"}</text>
+          <circle cx="347" cy="225" r="15" fill={activeTheme.iconBg} />
+          <path d={ICONS.email} fill="#fff" transform="translate(339.5,217.5) scale(0.625)" />
+          <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform="translate(339.5,217.5) scale(0.625)" />
+          <text x="371" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">EMAIL</text>
+          <text x="371" y="232" fontSize="10" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.email, 18) || "Data Missing"}</text>
         </a>
+
+        {/* Divider */}
+        <line x1="475" y1="208" x2="475" y2="242" stroke={themeDivider} strokeWidth="1" />
+
+        {/* Website */}
+        <a href={cardData.social?.website || "#"} target="_blank" rel="noopener noreferrer">
+          <circle cx="497" cy="225" r="15" fill={activeTheme.iconBg} />
+          <path d={ICONS.globe} fill="#fff" transform="translate(489.5,217.5) scale(0.625)" />
+          <text x="521" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">WEBSITE</text>
+          <text x="521" y="232" fontSize="10" fontWeight="600" fill={(!cardData.social?.website || cardData.social.website === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.social?.website || "", 18) || "Data Missing"}</text>
+        </a>
+
         <line x1="50" y1="260" x2="620" y2="260" stroke={themeDivider} strokeWidth="1" />
       </>)}
 
@@ -710,6 +723,8 @@ export default function CardPreview({
       {/* Divider line is FIXED — outside the scaledGroup so it doesn't scale */}
       <line x1="50" y1="345" x2="740" y2="345" stroke="#e5e7eb" strokeWidth="1" />
       {scaledGroup("socials", <>
+        <SocialIcon cx={420} cy={388} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WhatsApp" />
+        <line x1="450" y1="373" x2="450" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={480} cy={388} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
         <line x1="510" y1="373" x2="510" y2="405" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={540} cy={388} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" />
@@ -802,34 +817,34 @@ export default function CardPreview({
         {editorMode && <rect x="304" y="118" width="340" height="48" rx="6" className="drag-outline" />}
       </g>
 
-      {/* ── Contacts (stacked: Phone, WhatsApp, Email, Website) — NO address here, address has its own section below ── */}
+      {/* ── Contacts (stacked: Mobile, Phone, Email, Website) — NO address here, address has its own section below ── */}
       {scaledGroup("contacts", <>
         {editorMode && <rect x="304" y="173" width="310" height="160" rx="6" className="drag-outline" />}
         <line x1="310" y1="178" x2="610" y2="178" stroke="#e5e7eb" strokeWidth="1" />
-        {/* Phone */}
+        {/* Mobile */}
         <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
           <circle cx="325" cy="205" r="13" fill={brandColors.primary} />
           <path d={ICONS.phone} fill="#fff" transform="translate(318.5,198.5) scale(0.55)" />
-          <text x="348" y="210" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 30) || "Data Missing"}</text>
+          <text x="348" y="210" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 30) || "Data Missing"}</text>
         </a>
-        {/* WhatsApp */}
-        <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">
+        {/* Phone */}
+        <a href={`tel:${cardData.telephone || ""}`} target="_blank" rel="noopener noreferrer">
           <circle cx="325" cy="240" r="13" fill={brandColors.primary} />
-          <path d={ICONS.whatsapp} fill="#fff" transform="translate(318.5,233.5) scale(0.55)" />
-          <text x="348" y="245" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 30) || "Data Missing"}</text>
+          <path d={ICONS.phone} fill="#fff" transform="translate(318.5,233.5) scale(0.55)" />
+          <text x="348" y="245" fontSize="11" fontWeight="600" fill={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.telephone, 30) || "Data Missing"}</text>
         </a>
         {/* Email */}
         <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
           <circle cx="325" cy="275" r="13" fill={brandColors.primary} />
           <path d={ICONS.email} fill="#fff" transform="translate(318.5,268.5) scale(0.55)" />
           <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform="translate(318.5,268.5) scale(0.55)" />
-          <text x="348" y="280" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.email, 30) || "Data Missing"}</text>
+          <text x="348" y="280" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.email, 30) || "Data Missing"}</text>
         </a>
         {/* Website */}
         <a href={getWebsite() || "#"} target="_blank" rel="noopener noreferrer">
           <circle cx="325" cy="310" r="13" fill={brandColors.primary} />
           <path d={ICONS.globe} fill="#fff" transform="translate(318.5,303.5) scale(0.55)" />
-          <text x="348" y="315" fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.social?.website || "", 30) || "Data Missing"}</text>
+          <text x="348" y="315" fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.social?.website || "", 30) || "Data Missing"}</text>
         </a>
       </>)}
 
@@ -856,18 +871,21 @@ export default function CardPreview({
       {scaledGroup("address", <>
         {editorMode && <rect x="44" y="350" width="710" height="90" rx="6" className="drag-outline" />}
         <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(53,359) scale(0.75)" />
-        <text x="75" y="370" fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
+        <text x="75" y="370" fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
         {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 75, 386, 50, 13,
-          { fontSize: 9, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
+          { fontSize: 9, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
 
       </>)}
       {scaledGroup("socials", <>
+        <SocialIcon cx={437} cy={390} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WhatsApp" />
+        <line x1="463" y1="376" x2="463" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={490} cy={390} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LinkedIn" />
         <line x1="514" y1="376" x2="514" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={543} cy={390} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="Instagram" />
         <line x1="567" y1="376" x2="567" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={596} cy={390} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YouTube" />
         <line x1="620" y1="376" x2="620" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
+
         <SocialIcon cx={649} cy={390} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="Twitter" />
         <line x1="673" y1="376" x2="673" y2="407" stroke="#e5e7eb" strokeWidth="0.8" />
         <SocialIcon cx={702} cy={390} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="Facebook" />
@@ -948,22 +966,22 @@ export default function CardPreview({
         {/* Separator — gradient */}
         <line x1="38" y1={hasPhoto ? 270 : 295} x2="476" y2={hasPhoto ? 270 : 295} stroke="url(#dividerGrad)" strokeWidth="1.5" />
 
-        {/* ── Contacts (2×2 grid) — Phone/WhatsApp top row, Email/Website bottom row ── */}
+        {/* ── Contacts (2×2 grid) — Mobile/Phone top row, Email/Website bottom row ── */}
         {scaledGroup("contacts", <>
           {editorMode && <rect x="32" y={hasPhoto ? 274 : 299} width="450" height="140" rx="6" className="drag-outline" />}
-          {/* Phone — top left */}
+          {/* Mobile — top left */}
           <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
             <circle cx="60" cy={hasPhoto ? 305 : 330} r="15" fill={activeTheme.iconBg} />
             <path d={ICONS.phone} fill="#fff" transform={`translate(52.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
-            <text x="84" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">PHONE</text>
+            <text x="84" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">MOBILE</text>
             <text x="84" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
           </a>
-          {/* WhatsApp — top right */}
-          <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">
+          {/* Phone — top right */}
+          <a href={`tel:${cardData.telephone || ""}`} target="_blank" rel="noopener noreferrer">
             <circle cx="270" cy={hasPhoto ? 305 : 330} r="15" fill={activeTheme.iconBg} />
-            <path d={ICONS.whatsapp} fill="#fff" transform={`translate(262.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
-            <text x="294" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">WHATSAPP</text>
-            <text x="294" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
+            <path d={ICONS.phone} fill="#fff" transform={`translate(262.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
+            <text x="294" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">PHONE</text>
+            <text x="294" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.telephone || cardData.telephone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.telephone, 26) || "Data Missing"}</text>
           </a>
           {/* Email — bottom left */}
           <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
@@ -1014,15 +1032,17 @@ export default function CardPreview({
         <line x1="38" y1={hasPhoto ? 660 : 685} x2="476" y2={hasPhoto ? 660 : 685} stroke="url(#dividerGrad)" strokeWidth="1.5" />
         {scaledGroup("socials", <>
           {editorMode && <rect x="32" y={hasPhoto ? 664 : 689} width="450" height="55" rx="6" className="drag-outline" />}
-          <SocialIcon cx={70} cy={hasPhoto ? 700 : 725} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LINKEDIN" />
-          <line x1="105" y1={hasPhoto ? 685 : 710} x2="105" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={160} cy={hasPhoto ? 700 : 725} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="INSTAGRAM" />
-          <line x1="200" y1={hasPhoto ? 685 : 710} x2="200" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={252} cy={hasPhoto ? 700 : 725} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YOUTUBE" />
-          <line x1="290" y1={hasPhoto ? 685 : 710} x2="290" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={338} cy={hasPhoto ? 700 : 725} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="TWITTER" />
-          <line x1="378" y1={hasPhoto ? 685 : 710} x2="378" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
-          <SocialIcon cx={430} cy={hasPhoto ? 700 : 725} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="FACEBOOK" />
+          <SocialIcon cx={55} cy={hasPhoto ? 700 : 725} iconPath={ICONS.whatsapp} bgColor="#25D366" href={cardData.social.whatsapp || "#"} label="WHATSAPP" />
+          <line x1="91" y1={hasPhoto ? 685 : 710} x2="91" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={127} cy={hasPhoto ? 700 : 725} iconPath={ICONS.linkedin} bgColor="#0077b5" href={cardData.social.linkedin || "#"} label="LINKEDIN" />
+          <line x1="163" y1={hasPhoto ? 685 : 710} x2="163" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={199} cy={hasPhoto ? 700 : 725} iconPath={ICONS.instagram} bgColor="#e1306c" href={cardData.social.instagram || "#"} label="INSTAGRAM" />
+          <line x1="235" y1={hasPhoto ? 685 : 710} x2="235" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={271} cy={hasPhoto ? 700 : 725} iconPath={ICONS.youtube} bgColor="#ff0000" href={cardData.social.youtube || "#"} label="YOUTUBE" />
+          <line x1="307" y1={hasPhoto ? 685 : 710} x2="307" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={343} cy={hasPhoto ? 700 : 725} iconPath={ICONS.twitter} bgColor="#1da1f2" href={cardData.social.twitter || "#"} label="TWITTER" />
+          <line x1="379" y1={hasPhoto ? 685 : 710} x2="379" y2={hasPhoto ? 725 : 750} stroke="#e5e7eb" strokeWidth="0.8" />
+          <SocialIcon cx={415} cy={hasPhoto ? 700 : 725} iconPath={ICONS.facebook} bgColor="#1877f2" href={cardData.social.facebook || "#"} label="FACEBOOK" />
         </>)}
         {/* ── Free-form text boxes (draggable, optional) ── */}
         {renderTextBoxes()}

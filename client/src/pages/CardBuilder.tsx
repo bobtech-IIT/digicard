@@ -82,7 +82,8 @@ const EXPECTED_HEADERS = {
   youtube: ["youtube", "yt", "youtube handle"],
   github: ["github", "github handle"],
   tiktok: ["tiktok", "tiktok handle"],
-  whatsapp: ["whatsapp", "whatsapp number"]
+  whatsapp: ["whatsapp", "whatsapp number"],
+  telephone: ["telephone", "landline", "office phone", "telephone number", "phone no", "phone no."]
 };
 
 export default function CardBuilder() {
@@ -199,6 +200,7 @@ export default function CardBuilder() {
     fontPairingId: "outfit-jakarta",
     customBg: "",
     customTextColor: "",
+    telephone: "",
   });
 
   const handleHeadshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -610,7 +612,8 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
       },
       brandColors: cardData.brandColors,
       brandLogo: cardData.brandLogo,
-      headshot: null
+      headshot: null,
+      telephone: getColVal(EXPECTED_HEADERS.telephone),
     };
   };
 
@@ -744,6 +747,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
         fontPairingId: cardData.fontPairingId,
         customBg: cardData.customBg,
         customTextColor: cardData.customTextColor,
+        telephone: cardData.telephone,
         // NOTE: No images here — stored in localStorage below
       });
 
@@ -1031,14 +1035,26 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                     />
                   </div>
 
-                  {/* Phone */}
+                  {/* Mobile */}
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-700">Phone / Mobile</label>
+                    <label className="text-xs font-bold text-gray-700">Mobile</label>
                     <Input
                       placeholder="+1 (555) 123-4567"
                       value={cardData.phone}
                       onFocus={() => setLastFocusedField("phone")}
                       onChange={(e) => handleInputChange("phone", e.target.value)}
+                      className="border-gray-200 h-8 text-sm"
+                    />
+                  </div>
+
+                  {/* Telephone */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-700">Telephone / Phone</label>
+                    <Input
+                      placeholder="+1 (555) 987-6543"
+                      value={cardData.telephone || ""}
+                      onFocus={() => setLastFocusedField("telephone")}
+                      onChange={(e) => handleInputChange("telephone", e.target.value)}
                       className="border-gray-200 h-8 text-sm"
                     />
                   </div>
