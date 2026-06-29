@@ -239,7 +239,14 @@ export default function CardPreview({
     const dx = (e.clientX - dragStart.x) * scaleX;
     const dy = (e.clientY - dragStart.y) * scaleY;
     const cur = offsets[draggedItem] || { x: 0, y: 0 };
-    updateOffsets({ ...offsets, [draggedItem]: { ...cur, x: cur.x + dx, y: cur.y + dy } });
+    let newX = cur.x + dx;
+    let newY = cur.y + dy;
+
+    // Snapping to default design alignment/center (0,0) when within 8px threshold
+    if (Math.abs(newX) < 8) newX = 0;
+    if (Math.abs(newY) < 8) newY = 0;
+
+    updateOffsets({ ...offsets, [draggedItem]: { ...cur, x: newX, y: newY } });
     setDragStart({ x: e.clientX, y: e.clientY });
   };
 
@@ -621,6 +628,22 @@ export default function CardPreview({
       {/* ── Brand accent strip (top) ── */}
       <rect x="0" y="0" width="800" height="5" fill={activeTheme.accentStrip} rx="2" />
 
+      {/* ── Snap Alignment Guides ── */}
+      {editorMode && draggedItem && offsets[draggedItem]?.x === 0 && (
+        <g opacity="0.8">
+          <line x1="400" y1="0" x2="400" y2="457" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="5,5" />
+          <circle cx="400" cy="228.5" r="4" fill="#06b6d4" />
+          <text x="410" y="35" fontSize="9" fontWeight="700" fill="#06b6d4" className="fc-body">CENTER ALIGNED</text>
+        </g>
+      )}
+      {editorMode && draggedItem && offsets[draggedItem]?.y === 0 && (
+        <g opacity="0.8">
+          <line x1="0" y1="228.5" x2="800" y2="228.5" stroke="#10b981" strokeWidth="1.5" strokeDasharray="5,5" />
+          <circle cx="400" cy="228.5" r="4" fill="#10b981" />
+        </g>
+      )}
+
+
       {/* ── Logo (top-right) — no border, transparent PNG renders directly ── */}
       <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
         {cardData.brandLogo
@@ -778,6 +801,22 @@ export default function CardPreview({
       {/* ── Brand accent strip (top) ── */}
       <rect x="0" y="0" width="800" height="5" fill={activeTheme.accentStrip} rx="2" />
 
+      {/* ── Snap Alignment Guides ── */}
+      {editorMode && draggedItem && offsets[draggedItem]?.x === 0 && (
+        <g opacity="0.8">
+          <line x1="400" y1="0" x2="400" y2="457" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="5,5" />
+          <circle cx="400" cy="228.5" r="4" fill="#06b6d4" />
+          <text x="410" y="35" fontSize="9" fontWeight="700" fill="#06b6d4" className="fc-body">CENTER ALIGNED</text>
+        </g>
+      )}
+      {editorMode && draggedItem && offsets[draggedItem]?.y === 0 && (
+        <g opacity="0.8">
+          <line x1="0" y1="228.5" x2="800" y2="228.5" stroke="#10b981" strokeWidth="1.5" strokeDasharray="5,5" />
+          <circle cx="400" cy="228.5" r="4" fill="#10b981" />
+        </g>
+      )}
+
+
       {/* ── Photo (left circular) ── */}
       <g {...dragHandle("photo")} transform={`translate(${offsets.photo?.x || 0},${offsets.photo?.y || 0}) scale(${offsets.photo?.scale || 1})`}>
         {/* Photo shadow */}
@@ -921,6 +960,22 @@ export default function CardPreview({
           rx="12" />
         {/* ── Brand accent strip (top) ── */}
         <rect x="0" y="0" width="514" height="5" fill={activeTheme.accentStrip} rx="2" />
+
+        {/* ── Snap Alignment Guides ── */}
+        {editorMode && draggedItem && offsets[draggedItem]?.x === 0 && (
+          <g opacity="0.8">
+            <line x1="257" y1="0" x2="257" y2="760" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="5,5" />
+            <circle cx="257" cy="380" r="4" fill="#06b6d4" />
+            <text x="267" y="45" fontSize="9" fontWeight="700" fill="#06b6d4" className="fc-body">CENTER ALIGNED</text>
+          </g>
+        )}
+        {editorMode && draggedItem && offsets[draggedItem]?.y === 0 && (
+          <g opacity="0.8">
+            <line x1="0" y1="380" x2="514" y2="380" stroke="#10b981" strokeWidth="1.5" strokeDasharray="5,5" />
+            <circle cx="257" cy="380" r="4" fill="#10b981" />
+          </g>
+        )}
+
 
         {/* ── Logo — no border, transparent PNG renders directly ── */}
         <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>

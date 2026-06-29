@@ -86,6 +86,26 @@ const EXPECTED_HEADERS = {
   telephone: ["telephone", "landline", "office phone", "telephone number", "phone no", "phone no."]
 };
 
+const hslToHex = (h: number, s: number, l: number): string => {
+  l /= 100;
+  const a = (s * Math.min(l, 1 - l)) / 100;
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+};
+
+const getHexFromXY = (x: number, y: number): string => {
+  // Hue goes from 280 (violet) at x=0 down to 0 (red) at x=1
+  const hue = Math.round(280 * (1 - x));
+  const saturation = 90;
+  const lightness = Math.round(30 + y * 40); // 30% to 70% lightness
+  return hslToHex(hue, saturation, lightness);
+};
+
+
 export default function CardBuilder() {
   const [, navigate] = useLocation();
   const [layoutType, setLayoutType] = useState<"horizontal-no-photo" | "horizontal-with-photo" | "vertical-no-photo" | "vertical-with-photo">("horizontal-no-photo");
@@ -200,8 +220,29 @@ export default function CardBuilder() {
     fontPairingId: "outfit-jakarta",
     customBg: "",
     customTextColor: "",
-    telephone: "",
   });
+
+  const [vibgyorX, setVibgyorX] = useState(0.5);
+  const [vibgyorY, setVibgyorY] = useState(0.5);
+  const [fineTuneColor, setFineTuneColor] = useState("#047857");
+
+  const calculatedColor = getHexFromXY(vibgyorX, vibgyorY);
+  // Kelvin scale from 1500K (very warm) to 10000K (very cool)
+  const calculatedKelvin = Math.round(1500 + (1 - vibgyorY) * 8500);
+  const calculatedKelvinDesc = 
+    calculatedKelvin < 3000 ? "Warm Amber" :
+    calculatedKelvin < 4500 ? "Soft Warm" :
+    calculatedKelvin < 6500 ? "Daylight" :
+    calculatedKelvin < 8000 ? "Cool White" : "Cool Blue";
+
+  const handleColorPadClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    setVibgyorX(x);
+    setVibgyorY(y);
+  };
+
 
   const handleHeadshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1495,6 +1536,143 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                           </button>
                         </div>
                       )}
+                    </div>
+                  </Card>
+
+                  {/* ── VIBGYOR Color Studio ── */}
+                  <Card className="p-4 space-y-4 border border-gray-200 bg-white rounded-xl shadow-sm">
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800 mb-0.5">VIBGYOR Color Studio</h3>
+                      <p className="text-xs text-gray-500">Coordinate-based color temperature and spectrum mapping</p>
+                    </div>
+
+                    {/* Color Pad */}
+                    <div 
+                      className="relative w-full h-32 rounded-xl cursor-crosshair overflow-hidden border border-gray-200 shadow-inner"
+                      style={{
+                        background: `
+                          linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,1) 100%),
+                          linear-gradient(to right, #8b00ff, #4b0082, #0000ff, #00ff00, #ffff00, #ff7f00, #ff0000)
+                        `,
+                        backgroundBlendMode: "multiply"
+                      }}
+                      onClick={handleColorPadClick}
+                    >
+                      {/* Reticle / drag handle overlay */}
+                      <div 
+                        className="absolute w-4 h-4 -ml-2 -mt-2 border-2 border-white rounded-full bg-black/40 shadow-md pointer-events-none"
+                        style={{
+                          left: `${vibgyorX * 100}%`,
+                          top: `${vibgyorY * 100}%`
+                        }}
+                      />
+                    </div>
+
+                    {/* Dual Sliders */}
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px] font-bold text-gray-600">
+                          <span>X-Axis (VIBGYOR Hue): {vibgyorX.toFixed(2)}</span>
+                          <span className="font-mono text-gray-400">0.00 to 1.00</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value={vibgyorX}
+                          onChange={(e) => setVibgyorX(parseFloat(e.target.value))}
+                          className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px] font-bold text-gray-600">
+                          <span>Y-Axis (Temperature Shift): {vibgyorY.toFixed(2)}</span>
+                          <span className="font-mono text-gray-400">0.00 to 1.00</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value={vibgyorY}
+                          onChange={(e) => setVibgyorY(parseFloat(e.target.value))}
+                          className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Color Info & Kelvin Readout */}
+                    <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div 
+                          className="w-10 h-10 rounded-lg border border-gray-300/60 shadow-sm transition-all"
+                          style={{ backgroundColor: calculatedColor }}
+                        />
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-800 uppercase tracking-wider">{calculatedColor}</p>
+                          <p className="text-[10px] text-gray-500 font-medium">
+                            Coords: ({vibgyorX.toFixed(2)}, {vibgyorY.toFixed(2)})
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] font-bold text-teal-700">{calculatedKelvin} K</p>
+                        <p className="text-[9px] text-gray-400 font-semibold uppercase">{calculatedKelvinDesc}</p>
+                      </div>
+                    </div>
+
+                    {/* Apply & Finalize Controls */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setCardData(prev => ({ ...prev, customBg: calculatedColor }))}
+                        className="text-xs h-9 border-gray-200 font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        Apply as Background
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setCardData(prev => ({ ...prev, customTextColor: calculatedColor }))}
+                        className="text-xs h-9 border-gray-200 font-semibold flex items-center justify-center gap-1.5"
+                      >
+                        Apply as Text Color
+                      </Button>
+                    </div>
+
+                    {/* Fine-Tuning Color Picker */}
+                    <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-gray-600">Fine-Tune Picker</span>
+                      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1">
+                        <input
+                          type="color"
+                          value={fineTuneColor}
+                          onChange={(e) => {
+                            setFineTuneColor(e.target.value);
+                          }}
+                          className="w-5 h-5 rounded-full cursor-pointer bg-transparent border-0"
+                        />
+                        <span className="text-[10px] font-mono text-gray-600 uppercase">{fineTuneColor}</span>
+                        <div className="flex gap-1.5 ml-1 border-l border-gray-200 pl-2">
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customBg: fineTuneColor }))}
+                            className="text-[10px] font-bold text-teal-600 hover:underline"
+                          >
+                            Bg
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customTextColor: fineTuneColor }))}
+                            className="text-[10px] font-bold text-teal-600 hover:underline"
+                          >
+                            Text
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </Card>
                 </TabsContent>
