@@ -59,6 +59,8 @@ export default function PublicCardView() {
   };
   let brandLogo: string | null = null;
   let offsets = undefined;
+  let themeId = "classic-white";
+  let fontPairingId = "outfit-jakarta";
 
   try {
     if (card.socialLinks) {
@@ -67,6 +69,8 @@ export default function PublicCardView() {
       if (parsed.brandColors) brandColors = parsed.brandColors;
       if (parsed.brandLogo) brandLogo = parsed.brandLogo;
       if (parsed.offsets) offsets = parsed.offsets;
+      if (parsed.themeId) themeId = parsed.themeId;
+      if (parsed.fontPairingId) fontPairingId = parsed.fontPairingId;
     }
   } catch (e) {
     // Fallback for raw legacy text
@@ -137,6 +141,8 @@ END:VCARD`;
               social,
               brandLogo,
               brandColors,
+              themeId,
+              fontPairingId,
             }}
             layoutType={layoutType}
             savedOffsets={offsets}

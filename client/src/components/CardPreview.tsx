@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { CARD_THEMES, FONT_PAIRINGS, type CardTheme, type FontPairing } from "./ThemeSelector";
 
 import { Button } from "@/components/ui/button";
 import { Download, MessageCircle, Move, Settings } from "lucide-react";
@@ -32,6 +33,8 @@ interface CardData {
     primary: string;
     secondary: string;
   };
+  themeId?: string;        // Phase 2: selected card theme ID
+  fontPairingId?: string;  // Phase 2: selected font pairing ID
 }
 
 interface TextBox {
@@ -135,6 +138,17 @@ export default function CardPreview({
 }: CardPreviewProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // ── Phase 2: resolve active theme + font pairing ──────────────────────────
+  const activeTheme: CardTheme =
+    CARD_THEMES.find(t => t.id === cardData.themeId) ?? CARD_THEMES[0];
+  const activeFontPairing: FontPairing =
+    FONT_PAIRINGS.find(f => f.id === cardData.fontPairingId) ?? FONT_PAIRINGS[0];
+
+  // When theme is light-text, override body/sub text for SVG fills
+  const themeBodyText = activeTheme.bodyText;
+  const themeSubText  = activeTheme.subText;
+  const themeDivider  = activeTheme.divider;
+
   const [isExporting, setIsExporting] = useState(false);
   const [editorMode, setEditorMode] = useState(false);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
@@ -237,7 +251,7 @@ export default function CardPreview({
     setResizingItem(null);
   };
 
-  const brandColors = cardData.brandColors || { primary: "#047857", secondary: "#0d9488" };
+
 
   // Split name into first + last for two-tone rendering
   const nameParts = (cardData.name || "").trim().split(/\s+/);
@@ -457,22 +471,34 @@ export default function CardPreview({
       onMouseDown={(e) => handleResizeStart(e, item)} />
   );
 
+  // ── Phase 2: brand colors — theme takes precedence over user brand colors ─
+  const brandColors = {
+    primary: activeTheme.id === "classic-white"
+      ? (cardData.brandColors?.primary || "#047857")
+      : activeTheme.iconBg,
+    secondary: cardData.brandColors?.secondary || "#0d9488",
+  };
+
   const svgDefs = (
     <defs>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-        .fc-name { font-family: 'Outfit', sans-serif; }
-        .fc-body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        @import url('${activeFontPairing.googleUrl}');
+        .fc-name { font-family: '${activeFontPairing.headingFont}', sans-serif; }
+        .fc-body { font-family: '${activeFontPairing.bodyFont}', sans-serif; }
         .drag-outline { stroke: #06b6d4; stroke-width: 1.5; stroke-dasharray: 4; fill: #06b6d4; fill-opacity: 0.04; }
       `}</style>
+      {/* Optional background gradient for dark/eco themes */}
+      {activeTheme.bgGradient && (
+        <g dangerouslySetInnerHTML={{ __html: activeTheme.bgGradient }} />
+      )}
       <linearGradient id="dividerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stopColor="transparent" />
-        <stop offset="25%" stopColor={brandColors.primary} stopOpacity="0.2" />
-        <stop offset="75%" stopColor={brandColors.primary} stopOpacity="0.2" />
+        <stop offset="25%" stopColor={activeTheme.accentStrip} stopOpacity="0.2" />
+        <stop offset="75%" stopColor={activeTheme.accentStrip} stopOpacity="0.2" />
         <stop offset="100%" stopColor="transparent" />
       </linearGradient>
       <filter id="photoShadow" x="-15%" y="-15%" width="130%" height="130%">
-        <feDropShadow dx="0" dy="4" stdDeviation="8" floodColor={brandColors.primary} floodOpacity="0.2" />
+        <feDropShadow dx="0" dy="4" stdDeviation="8" floodColor={activeTheme.accentStrip} floodOpacity="0.2" />
       </filter>
     </defs>
   );
@@ -569,9 +595,12 @@ export default function CardPreview({
       className="w-full h-full" xmlns="http://www.w3.org/2000/svg"
       onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
       {svgDefs}
-      <rect width="800" height="457" fill="#ffffff" rx="12" />
+      {/* Background */}
+      <rect width="800" height="457"
+        fill={activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg}
+        rx="12" />
       {/* ── Brand accent strip (top) ── */}
-      <rect x="0" y="0" width="800" height="5" fill={brandColors.primary} rx="2" />
+      <rect x="0" y="0" width="800" height="5" fill={activeTheme.accentStrip} rx="2" />
 
       {/* ── Logo (top-right) — no border, transparent PNG renders directly ── */}
       <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
@@ -589,30 +618,30 @@ export default function CardPreview({
           const fs = Math.min(offsets.name?.fontSize || 44, longName ? Math.max(26, 44 - (totalLen - 16) * 1.2) : 44);
           return longName ? (
             <text x="50" className="fc-name" fontSize={fs} fontWeight="800" letterSpacing="-0.5">
-              <tspan x="50" y="88" fill="#000000">{firstName}</tspan>
-              <tspan x="50" dy={fs + 4} fill={brandColors.primary}>{lastName}</tspan>
+              <tspan x="50" y="88" fill={activeTheme.nameColor1}>{firstName}</tspan>
+              <tspan x="50" dy={fs + 4} fill={activeTheme.nameColor2}>{lastName}</tspan>
             </text>
           ) : (
             <text x="50" y="100" className="fc-name" fontSize={fs} fontWeight="800" letterSpacing="-0.5">
-              <tspan fill="#000000">{firstName}</tspan>
-              {lastName && <tspan fill={brandColors.primary}> {lastName}</tspan>}
+              <tspan fill={activeTheme.nameColor1}>{firstName}</tspan>
+              {lastName && <tspan fill={activeTheme.nameColor2}> {lastName}</tspan>}
             </text>
           );
         })()}
-        <line x1="50" y1="130" x2="95" y2="130" stroke={brandColors.primary} strokeWidth="5" strokeLinecap="round" />
+        <line x1="50" y1="130" x2="95" y2="130" stroke={activeTheme.accentLine} strokeWidth="5" strokeLinecap="round" />
         {editorMode && <rect x="44" y="55" width="460" height="85" rx="6" className="drag-outline" />}
       </g>
 
       {/* ── Designation + Office + Bio (optional) ── */}
       <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
         {/* Designation */}
-        <text x="50" y="150" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 45) || "Head of Marketing"}</text>
+        <text x="50" y="150" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.designation, 45) || "Head of Marketing"}</text>
         {/* Thin separator line between Designation and Office Name */}
 
         {/* Office Name */}
-        <text x="50" y="174" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 40) || "Company Name"}</text>
+        <text x="50" y="174" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={activeTheme.nameColor2} className="fc-body">{truncate(cardData.officeName, 40) || "Company Name"}</text>
         {cardData.bio && cardData.bio.trim() && (
-          <text x="50" y="192" fontSize={10} fontWeight="400" fill="#6b7280" fontStyle="italic" className="fc-body" opacity="0.85">{truncate(cardData.bio, 80)}</text>
+          <text x="50" y="192" fontSize={10} fontWeight="400" fill={themeSubText} fontStyle="italic" className="fc-body" opacity="0.85">{truncate(cardData.bio, 80)}</text>
         )}
         {editorMode && <rect x="44" y="136" width="440" height="66" rx="6" className="drag-outline" />}
       </g>
@@ -625,44 +654,44 @@ export default function CardPreview({
 
         {/* Phone */}
         <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="72" cy="225" r="16" fill={brandColors.primary} />
+          <circle cx="72" cy="225" r="16" fill={activeTheme.iconBg} />
           <path d={ICONS.phone} fill="#fff" transform="translate(63.5,216.5) scale(0.7)" />
-          <text x="98" y="218" fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">PHONE</text>
-          <text x="98" y="232" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 28) || "Data Missing"}</text>
+          <text x="98" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">PHONE</text>
+          <text x="98" y="232" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 28) || "Data Missing"}</text>
         </a>
 
         {/* Divider */}
-        <line x1="220" y1="208" x2="220" y2="245" stroke="#d1d5db" strokeWidth="1" />
+        <line x1="220" y1="208" x2="220" y2="245" stroke={themeDivider} strokeWidth="1" />
 
         {/* WhatsApp */}
         <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="248" cy="225" r="16" fill={brandColors.primary} />
+          <circle cx="248" cy="225" r="16" fill={activeTheme.iconBg} />
           <path d={ICONS.whatsapp} fill="#fff" transform="translate(239.5,216.5) scale(0.7)" />
-          <text x="274" y="218" fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">WHATSAPP</text>
-          <text x="274" y="232" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 22) || "Data Missing"}</text>
+          <text x="274" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">WHATSAPP</text>
+          <text x="274" y="232" fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 22) || "Data Missing"}</text>
         </a>
 
         {/* Divider */}
-        <line x1="410" y1="208" x2="410" y2="245" stroke="#d1d5db" strokeWidth="1" />
+        <line x1="410" y1="208" x2="410" y2="245" stroke={themeDivider} strokeWidth="1" />
 
         {/* Email */}
         <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
-          <circle cx="438" cy="225" r="16" fill={brandColors.primary} />
+          <circle cx="438" cy="225" r="16" fill={activeTheme.iconBg} />
           <path d={ICONS.email} fill="#fff" transform="translate(429.5,216.5) scale(0.7)" />
           <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform="translate(429.5,216.5) scale(0.7)" />
-          <text x="464" y="218" fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body">EMAIL</text>
-          <text x="464" y="232" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.email, 30) || "Data Missing"}</text>
+          <text x="464" y="218" fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body">EMAIL</text>
+          <text x="464" y="232" fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.email, 30) || "Data Missing"}</text>
         </a>
-        <line x1="50" y1="260" x2="620" y2="260" stroke="#e5e7eb" strokeWidth="1" />
+        <line x1="50" y1="260" x2="620" y2="260" stroke={themeDivider} strokeWidth="1" />
       </>)}
 
-      {/* ── Address bottom-left ── */}
-      {scaledGroup("address", <>
-        {editorMode && <rect x="40" y="268" width="430" height="50" rx="6" className="drag-outline" />}
-        <path d={ICONS.mapPin} fill={brandColors.primary} transform="translate(48,275) scale(0.72)" />
-        <text x="72" y="286" fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
-        {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 72, 302, 55, 13,
-          { fontSize: 9.5, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
+        {/* Address bottom-left */}
+        {scaledGroup("address", <>
+          {editorMode && <rect x="40" y="268" width="430" height="50" rx="6" className="drag-outline" />}
+          <path d={ICONS.mapPin} fill={activeTheme.iconBg} transform="translate(48,275) scale(0.72)" />
+          <text x="72" y="286" fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.officeName, 28) || "Company Name Pvt. Ltd."}</text>
+          {multiline(cardData.address || "7th Floor, Tower A, Cybercity Commerzone, Mundhwa, Pune – 411089", 72, 302, 55, 13,
+            { fontSize: 9.5, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
 
       </>)}
 
@@ -709,9 +738,12 @@ export default function CardPreview({
       <defs>
         <clipPath id="photo-clip-h"><circle cx="155" cy="185" r="130" /></clipPath>
       </defs>
-      <rect width="800" height="457" fill="#ffffff" rx="12" />
+      {/* Background */}
+      <rect width="800" height="457"
+        fill={activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg}
+        rx="12" />
       {/* ── Brand accent strip (top) ── */}
-      <rect x="0" y="0" width="800" height="5" fill={brandColors.primary} rx="2" />
+      <rect x="0" y="0" width="800" height="5" fill={activeTheme.accentStrip} rx="2" />
 
       {/* ── Photo (left circular) ── */}
       <g {...dragHandle("photo")} transform={`translate(${offsets.photo?.x || 0},${offsets.photo?.y || 0}) scale(${offsets.photo?.scale || 1})`}>
@@ -741,21 +773,21 @@ export default function CardPreview({
       {/* ── Name ── */}
       <g {...dragHandle("name")} transform={`translate(${offsets.name?.x || 0},${offsets.name?.y || 0})`}>
         <text x="310" y="90" className="fc-name" fontSize={offsets.name?.fontSize || 44} fontWeight="800" letterSpacing="-0.5">
-          <tspan fill="#000000">{firstName}</tspan>
-          {lastName && <tspan fill={brandColors.primary}> {lastName}</tspan>}
+          <tspan fill={activeTheme.nameColor1}>{firstName}</tspan>
+          {lastName && <tspan fill={activeTheme.nameColor2}> {lastName}</tspan>}
         </text>
-        <line x1="310" y1="107" x2="355" y2="107" stroke={brandColors.primary} strokeWidth="5" strokeLinecap="round" />
+        <line x1="310" y1="107" x2="355" y2="107" stroke={activeTheme.accentLine} strokeWidth="5" strokeLinecap="round" />
         {editorMode && <rect x="304" y="45" width="380" height="70" rx="6" className="drag-outline" />}
       </g>
 
       {/* ── Designation ── */}
       <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
         {/* Designation */}
-        <text x="310" y="133" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 35) || "Head of Marketing"}</text>
+        <text x="310" y="133" fontSize={offsets.designation?.fontSize || 15} fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.designation, 35) || "Head of Marketing"}</text>
         {/* Thin separator line between Designation and Office Name */}
 
         {/* Office Name */}
-        <text x="310" y="157" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
+        <text x="310" y="157" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={activeTheme.nameColor2} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
         {editorMode && <rect x="304" y="118" width="340" height="48" rx="6" className="drag-outline" />}
       </g>
 
@@ -847,9 +879,12 @@ export default function CardPreview({
         <defs>
           <clipPath id="photo-clip-v"><circle cx="385" cy="195" r="90" /></clipPath>
         </defs>
-        <rect width="514" height="760" fill="#ffffff" rx="12" />
+        {/* Background */}
+        <rect width="514" height="760"
+          fill={activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg}
+          rx="12" />
         {/* ── Brand accent strip (top) ── */}
-        <rect x="0" y="0" width="514" height="5" fill={brandColors.primary} rx="2" />
+        <rect x="0" y="0" width="514" height="5" fill={activeTheme.accentStrip} rx="2" />
 
         {/* ── Logo — no border, transparent PNG renders directly ── */}
         <g {...dragHandle("logo")} transform={`translate(${offsets.logo?.x || 0},${offsets.logo?.y || 0}) scale(${offsets.logo?.scale || 1})`}>
@@ -880,22 +915,22 @@ export default function CardPreview({
 
         {/* ── Name ── */}
         <g {...dragHandle("name")} transform={`translate(${offsets.name?.x || 0},${offsets.name?.y || 0})`}>
-          <text x="38" y={hasPhoto ? 145 : 160} className="fc-name" fontSize={offsets.name?.fontSize || 32} fontWeight="800" letterSpacing="-0.5" fill="#000000">
+          <text x="38" y={hasPhoto ? 145 : 160} className="fc-name" fontSize={offsets.name?.fontSize || 32} fontWeight="800" letterSpacing="-0.5" fill={activeTheme.nameColor1}>
             <tspan x="38">{firstName}</tspan>
-            {lastName && <tspan x="38" dy={offsets.name?.fontSize ? offsets.name.fontSize + 4 : 36} fill={brandColors.primary}>{lastName}</tspan>}
+            {lastName && <tspan x="38" dy={offsets.name?.fontSize ? offsets.name.fontSize + 4 : 36} fill={activeTheme.nameColor2}>{lastName}</tspan>}
           </text>
-          <line x1="38" y1={hasPhoto ? 200 : 225} x2="83" y2={hasPhoto ? 200 : 225} stroke={brandColors.primary} strokeWidth="5" strokeLinecap="round" />
+          <line x1="38" y1={hasPhoto ? 200 : 225} x2="83" y2={hasPhoto ? 200 : 225} stroke={activeTheme.accentLine} strokeWidth="5" strokeLinecap="round" />
           {editorMode && <rect x="32" y={hasPhoto ? 105 : 120} width={hasPhoto ? 255 : 435} height="100" rx="6" className="drag-outline" />}
         </g>
 
         {/* ── Designation ── */}
         <g {...dragHandle("designation")} transform={`translate(${offsets.designation?.x || 0},${offsets.designation?.y || 0})`}>
           {/* Designation */}
-          <text x="38" y={hasPhoto ? 225 : 255} fontSize={offsets.designation?.fontSize || 14} fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.designation, 32) || "Head of Marketing"}</text>
+          <text x="38" y={hasPhoto ? 225 : 255} fontSize={offsets.designation?.fontSize || 14} fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.designation, 32) || "Head of Marketing"}</text>
           {/* Thin separator line */}
 
           {/* Office Name */}
-          <text x="38" y={hasPhoto ? 250 : 280} fontSize={(offsets.designation?.fontSize || 14) - 1} fontWeight="600" fill={brandColors.primary} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
+          <text x="38" y={hasPhoto ? 250 : 280} fontSize={(offsets.designation?.fontSize || 14) - 1} fontWeight="600" fill={activeTheme.nameColor2} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
           {editorMode && <rect x="32" y={hasPhoto ? 210 : 240} width="440" height="50" rx="6" className="drag-outline" />}
         </g>
 
@@ -907,32 +942,32 @@ export default function CardPreview({
           {editorMode && <rect x="32" y={hasPhoto ? 274 : 299} width="450" height="140" rx="6" className="drag-outline" />}
           {/* Phone — top left */}
           <a href={`tel:${cardData.phone}`} target="_blank" rel="noopener noreferrer">
-            <circle cx="60" cy={hasPhoto ? 305 : 330} r="15" fill={brandColors.primary} />
+            <circle cx="60" cy={hasPhoto ? 305 : 330} r="15" fill={activeTheme.iconBg} />
             <path d={ICONS.phone} fill="#fff" transform={`translate(52.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
-            <text x="84" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">PHONE</text>
-            <text x="84" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
+            <text x="84" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">PHONE</text>
+            <text x="84" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
           </a>
           {/* WhatsApp — top right */}
           <a href={`https://wa.me/${(cardData.phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">
-            <circle cx="270" cy={hasPhoto ? 305 : 330} r="15" fill={brandColors.primary} />
+            <circle cx="270" cy={hasPhoto ? 305 : 330} r="15" fill={activeTheme.iconBg} />
             <path d={ICONS.whatsapp} fill="#fff" transform={`translate(262.5,${hasPhoto ? 297.5 : 322.5}) scale(0.63)`} />
-            <text x="294" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">WHATSAPP</text>
-            <text x="294" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
+            <text x="294" y={hasPhoto ? 299 : 324} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">WHATSAPP</text>
+            <text x="294" y={hasPhoto ? 313 : 338} fontSize="11" fontWeight="600" fill={(!cardData.phone || cardData.phone === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.phone, 26) || "Data Missing"}</text>
           </a>
           {/* Email — bottom left */}
           <a href={`mailto:${cardData.email}`} target="_blank" rel="noopener noreferrer">
-            <circle cx="60" cy={hasPhoto ? 358 : 383} r="15" fill={brandColors.primary} />
+            <circle cx="60" cy={hasPhoto ? 358 : 383} r="15" fill={activeTheme.iconBg} />
             <path d={ICONS.email} fill="#fff" transform={`translate(52.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
             <path d={ICONS.emailChevron} stroke="#fff" strokeWidth="2" fill="none" transform={`translate(52.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
-            <text x="84" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">EMAIL</text>
-            <text x="84" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.email, 26) || "Data Missing"}</text>
+            <text x="84" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">EMAIL</text>
+            <text x="84" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!cardData.email || cardData.email === "Data Missing") ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.email, 26) || "Data Missing"}</text>
           </a>
           {/* Website — bottom right */}
           <a href={getWebsite() || "#"} target="_blank" rel="noopener noreferrer">
-            <circle cx="270" cy={hasPhoto ? 358 : 383} r="15" fill={brandColors.primary} />
+            <circle cx="270" cy={hasPhoto ? 358 : 383} r="15" fill={activeTheme.iconBg} />
             <path d={ICONS.globe} fill="#fff" transform={`translate(262.5,${hasPhoto ? 350.5 : 375.5}) scale(0.63)`} />
-            <text x="294" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill="#6b7280" className="fc-body" letterSpacing="0.5">WEBSITE</text>
-            <text x="294" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : "#111827"} className="fc-body">{truncate(cardData.social?.website || "", 26) || "Data Missing"}</text>
+            <text x="294" y={hasPhoto ? 352 : 377} fontSize="8" fontWeight="700" fill={themeSubText} className="fc-body" letterSpacing="0.5">WEBSITE</text>
+            <text x="294" y={hasPhoto ? 366 : 391} fontSize="11" fontWeight="600" fill={(!getWebsite()) ? "#ef4444" : themeBodyText} className="fc-body">{truncate(cardData.social?.website || "", 26) || "Data Missing"}</text>
           </a>
         </>)}
 
@@ -942,26 +977,26 @@ export default function CardPreview({
         {/* ── Address (bottom-left) ── */}
         {scaledGroup("address", <>
           {editorMode && <rect x="32" y={hasPhoto ? 412 : 437} width="240" height="180" rx="6" className="drag-outline" />}
-          <path d={ICONS.mapPin} fill={brandColors.primary} transform={`translate(38,${hasPhoto ? 423 : 448}) scale(0.8)`} />
-          <text x="62" y={hasPhoto ? 437 : 462} fontSize="10" fontWeight="700" fill="#111827" className="fc-body">ADDRESS</text>
-          <text x="62" y={hasPhoto ? 454 : 479} fontSize="10" fontWeight="700" fill="#111827" className="fc-body">{truncate(cardData.officeName, 25) || "Company Name Pvt. Ltd."}</text>
+          <path d={ICONS.mapPin} fill={activeTheme.iconBg} transform={`translate(38,${hasPhoto ? 423 : 448}) scale(0.8)`} />
+          <text x="62" y={hasPhoto ? 437 : 462} fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">ADDRESS</text>
+          <text x="62" y={hasPhoto ? 454 : 479} fontSize="10" fontWeight="700" fill={themeBodyText} className="fc-body">{truncate(cardData.officeName, 25) || "Company Name Pvt. Ltd."}</text>
           {multiline(cardData.address || "City, State, Country", 62, hasPhoto ? 470 : 495, 28, 14,
-            { fontSize: 9.5, fontWeight: "500", fill: "#6b7280", className: "fc-body" })}
+            { fontSize: 9.5, fontWeight: "500", fill: themeSubText, className: "fc-body" })}
         </>)}
 
-        {/* ── QR Code (bottom-right) — vertically aligned with ADDRESS top edge ── */}
+        {/* ── QR Code (bottom-right) ── */}
         <g {...dragHandle("qr")} transform={`translate(${offsets.qr?.x || 0},${offsets.qr?.y || 0}) scale(${offsets.qr?.scale || 1})`}>
           <a href={getQRValue()} target="_blank" rel="noopener noreferrer">
-            <rect x="295" y={hasPhoto ? 414 : 439} width="178" height="178" rx="12" stroke={brandColors.primary} strokeWidth="1.5" fill="#fff" />
+            <rect x="295" y={hasPhoto ? 414 : 439} width="178" height="178" rx="12" stroke={activeTheme.accentStrip} strokeWidth="1.5" fill={activeTheme.textStyle === "light" ? "#1e293b" : "#fff"} />
             {/* Premium double border */}
-            <rect x="298" y={hasPhoto ? 417 : 442} width="172" height="172" rx="10" stroke={brandColors.primary} strokeWidth="0.5" fill="none" opacity="0.3" />
+            <rect x="298" y={hasPhoto ? 417 : 442} width="172" height="172" rx="10" stroke={activeTheme.accentStrip} strokeWidth="0.5" fill="none" opacity="0.3" />
             <svg x="305" y={hasPhoto ? 424 : 449} width="158" height="158">
-              <QRCodeSVG value={getQRValue()} size={158} level="H" includeMargin={false} />
+              <QRCodeSVG value={getQRValue()} size={158} level="H" includeMargin={false} bgColor={activeTheme.textStyle === "light" ? "#1e293b" : "#ffffff"} fgColor={activeTheme.textStyle === "light" ? "#ffffff" : "#000000"} />
             </svg>
-            <rect x="295" y={hasPhoto ? 598 : 623} width="178" height="30" rx="15" fill={brandColors.primary} />
+            <rect x="295" y={hasPhoto ? 598 : 623} width="178" height="30" rx="15" fill={activeTheme.accentStrip} />
             <text x="384" y={hasPhoto ? 617 : 642} textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" className="fc-body" letterSpacing="0.5">SCAN TO CONNECT</text>
           </a>
-          {editorMode && <><rect x="290" y={hasPhoto ? 409 : 434} width="188" height="228" rx="6" className="drag-outline" />{resizeHandle("qr", 478, hasPhoto ? 637 : 662)}</>}
+          {editorMode && <><rect x="290" y={hasPhoto ? 409 : 434} width="188" height="228" rx="6" className="drag-outline" />{resizeHandle("qr", 478, hasPhoto ? 637 : 662)}</> }
         </g>
 
         {/* ── Socials Bar (bottom) ── */}

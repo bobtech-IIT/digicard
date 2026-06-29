@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import CardPreview from "@/components/CardPreview";
 import AISettings from "@/components/AISettings";
 import BrandAssets from "@/components/BrandAssets";
+import ThemeSelector from "@/components/ThemeSelector";
 import { useLocation } from "wouter";
 import { Sparkles, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, ClipboardCheck, Loader2, Key, Eye, PenLine, Wand2, Type, Bold, Italic, RefreshCw, FileDown, FileImage, FileType, Contact } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +60,8 @@ interface CardData {
     primary: string;
     secondary: string;
   };
+  themeId?: string;        // Phase 2: active card theme
+  fontPairingId?: string;  // Phase 2: active font pairing
 }
 
 const EXPECTED_HEADERS = {
@@ -190,6 +193,8 @@ export default function CardBuilder() {
       primary: "#047857",
       secondary: "#0d9488",
     },
+    themeId: "classic-white",
+    fontPairingId: "outfit-jakarta",
   });
 
   const handleHeadshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -731,6 +736,8 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
         brandColors: cardData.brandColors,
         offsets,
         bio: cardData.bio,
+        themeId: cardData.themeId,
+        fontPairingId: cardData.fontPairingId,
         // NOTE: No images here — stored in localStorage below
       });
 
@@ -1224,7 +1231,19 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                 </TabsContent>
 
                 {/* Brand Assets */}
-                <TabsContent value="brand" className="mt-3">
+                <TabsContent value="brand" className="mt-3 space-y-5">
+
+                  {/* ── Phase 2: Theme + Font Selector ── */}
+                  <div className="p-3 bg-gray-50 border border-gray-100 rounded-2xl">
+                    <ThemeSelector
+                      selectedThemeId={cardData.themeId || "classic-white"}
+                      selectedFontId={cardData.fontPairingId || "outfit-jakarta"}
+                      onThemeChange={(id) => setCardData(prev => ({ ...prev, themeId: id }))}
+                      onFontChange={(id) => setCardData(prev => ({ ...prev, fontPairingId: id }))}
+                    />
+                  </div>
+
+                  {/* ── Brand logo + colour picker ── */}
                   <BrandAssets
                     onBrandUpdate={handleBrandUpdate}
                     currentBrandLogo={cardData.brandLogo}
@@ -1307,56 +1326,52 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
               onTextBoxMove={(id, x, y) => setTextBoxes(prev => prev.map(tb => tb.id === id ? { ...tb, x, y } : tb))}
             />
 
-            {/* ── Export Panel ─────────────────────────────────────────── */}
-            <Card className="p-4 bg-white/80 border border-gray-100 rounded-2xl shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
-                    <Download size={15} className="text-teal-600" />
-                    Export &amp; Download
-                  </h3>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Download your card or save contact info</p>
-                </div>
+            {/* ── Export & Download Panel ──────────────────────────────── */}
+            <Card className="p-3 bg-white/80 border border-gray-100 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <Download size={13} className="text-teal-600" />
+                <span className="text-xs font-bold text-gray-700">Export &amp; Download</span>
+                <span className="ml-auto text-[10px] text-gray-400">Download your card or save contact</span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-1.5">
                 {/* PNG */}
                 <button
                   onClick={() => handleExportSingleCard("png")}
                   disabled={isExporting !== null}
-                  className="flex flex-col items-center gap-1.5 p-3 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors disabled:opacity-50 group"
+                  className="flex flex-col items-center gap-1 py-2.5 px-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-all disabled:opacity-50 group active:scale-95"
                 >
-                  {isExporting === "png" ? <Loader2 size={18} className="text-teal-600 animate-spin" /> : <FileImage size={18} className="text-teal-600 group-hover:scale-110 transition-transform" />}
-                  <span className="text-[11px] font-bold text-teal-800">PNG</span>
-                  <span className="text-[9px] text-teal-600">Hi-Res 3×</span>
+                  {isExporting === "png" ? <Loader2 size={15} className="text-teal-600 animate-spin" /> : <FileImage size={15} className="text-teal-600 group-hover:scale-110 transition-transform" />}
+                  <span className="text-[10px] font-bold text-teal-800">PNG</span>
+                  <span className="text-[8px] text-teal-500 leading-tight">3× Hi-Res</span>
                 </button>
                 {/* PDF */}
                 <button
                   onClick={() => handleExportSingleCard("pdf")}
                   disabled={isExporting !== null}
-                  className="flex flex-col items-center gap-1.5 p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors disabled:opacity-50 group"
+                  className="flex flex-col items-center gap-1 py-2.5 px-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all disabled:opacity-50 group active:scale-95"
                 >
-                  {isExporting === "pdf" ? <Loader2 size={18} className="text-red-500 animate-spin" /> : <FileDown size={18} className="text-red-500 group-hover:scale-110 transition-transform" />}
-                  <span className="text-[11px] font-bold text-red-700">PDF</span>
-                  <span className="text-[9px] text-red-500">Print Ready</span>
+                  {isExporting === "pdf" ? <Loader2 size={15} className="text-rose-500 animate-spin" /> : <FileDown size={15} className="text-rose-500 group-hover:scale-110 transition-transform" />}
+                  <span className="text-[10px] font-bold text-rose-700">PDF</span>
+                  <span className="text-[8px] text-rose-400 leading-tight">Print Ready</span>
                 </button>
                 {/* SVG */}
                 <button
                   onClick={() => handleExportSingleCard("svg")}
                   disabled={isExporting !== null}
-                  className="flex flex-col items-center gap-1.5 p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition-colors disabled:opacity-50 group"
+                  className="flex flex-col items-center gap-1 py-2.5 px-1 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-xl transition-all disabled:opacity-50 group active:scale-95"
                 >
-                  {isExporting === "svg" ? <Loader2 size={18} className="text-purple-500 animate-spin" /> : <FileType size={18} className="text-purple-500 group-hover:scale-110 transition-transform" />}
-                  <span className="text-[11px] font-bold text-purple-700">SVG</span>
-                  <span className="text-[9px] text-purple-500">Vector</span>
+                  {isExporting === "svg" ? <Loader2 size={15} className="text-violet-500 animate-spin" /> : <FileType size={15} className="text-violet-500 group-hover:scale-110 transition-transform" />}
+                  <span className="text-[10px] font-bold text-violet-700">SVG</span>
+                  <span className="text-[8px] text-violet-400 leading-tight">Vector</span>
                 </button>
                 {/* vCard */}
                 <button
                   onClick={handleDownloadVCard}
-                  className="flex flex-col items-center gap-1.5 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors group"
+                  className="flex flex-col items-center gap-1 py-2.5 px-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all group active:scale-95"
                 >
-                  <Contact size={18} className="text-blue-500 group-hover:scale-110 transition-transform" />
-                  <span className="text-[11px] font-bold text-blue-700">vCard</span>
-                  <span className="text-[9px] text-blue-500">Save Contact</span>
+                  <Contact size={15} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] font-bold text-blue-700">vCard</span>
+                  <span className="text-[8px] text-blue-400 leading-tight">Contact</span>
                 </button>
               </div>
             </Card>
@@ -1561,70 +1576,51 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
       {/* Share dialog modal */}
       {shareModalOpen && (
         <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
-          <DialogContent className="max-w-md bg-white p-6 rounded-2xl shadow-xl border">
+          <DialogContent className="max-w-sm bg-white p-5 rounded-2xl shadow-2xl border border-gray-100">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-gray-800">
-                Card Saved successfully!
+              <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-teal-100">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-teal-600" stroke="currentColor" strokeWidth={2}><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+                Card saved!
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 py-3">
-              <p className="text-sm text-gray-600">
-                Share this digital visiting card with clients, receivers, and contacts. Scanning the QR code or clicking the link on mobile will open an interactive page with clickable connections!
+            <div className="space-y-3 pt-1">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Share this digital card with anyone — they'll see an interactive page with all your contact links.
               </p>
-              
-              <div className="flex items-center gap-2 border bg-gray-50 p-2.5 rounded-lg">
-                <span className="text-xs font-mono text-gray-500 overflow-x-auto whitespace-nowrap flex-1 pr-2">
+
+              {/* Shareable link row */}
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                <span className="text-[11px] font-mono text-gray-500 overflow-hidden text-ellipsis whitespace-nowrap flex-1">
                   {getPublicShareURL()}
                 </span>
-                <Button onClick={handleCopyLink} size="sm" variant="outline" className="bg-white">
-                  <Copy size={14} className="mr-1" />
-                  Copy
-                </Button>
+                <button
+                  onClick={handleCopyLink}
+                  className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1.5 rounded-lg transition-colors active:scale-95"
+                >
+                  <Copy size={11} /> Copy
+                </button>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button
-                  onClick={handleShareWhatsApp}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-5 rounded-xl gap-2 shadow-sm text-xs"
-                >
-                  <MessageCircle size={16} />
-                  Share on WhatsApp
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShareModalOpen(false)}
-                  className="flex-1 py-5 rounded-xl text-xs"
-                >
-                  Close
-                </Button>
-              </div>
+              {/* WhatsApp share — premium styled */}
+              <button
+                onClick={handleShareWhatsApp}
+                className="w-full flex items-center justify-center gap-2.5 bg-[#25D366] hover:bg-[#1ebe5d] active:bg-[#17a851] text-white font-bold py-3 rounded-xl shadow-md shadow-green-200 transition-all active:scale-[0.98] text-sm"
+              >
+                {/* Official WhatsApp icon SVG */}
+                <svg viewBox="0 0 32 32" className="w-5 h-5 fill-white shrink-0" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M16.003 0C7.164 0 .008 7.155.008 15.994c0 2.822.738 5.467 2.026 7.773L0 32l8.44-2.007a15.94 15.94 0 007.563 1.917h.007C24.842 31.91 32 24.754 32 15.915 32 7.077 24.842-.001 16.003-.001zm0 29.226h-.006a13.23 13.23 0 01-6.745-1.843l-.484-.288-5.01 1.193 1.24-4.887-.317-.502A13.205 13.205 0 012.693 15.99C2.693 8.617 8.627 2.684 16 2.684c7.372 0 13.307 5.933 13.307 13.306 0 7.374-5.935 13.236-13.304 13.236zm7.298-9.907c-.4-.2-2.366-1.167-2.732-1.3-.367-.132-.634-.2-.9.2-.267.4-1.033 1.3-1.267 1.566-.233.267-.467.3-.867.1-.4-.2-1.688-.622-3.215-1.984-1.19-1.06-1.993-2.37-2.226-2.77-.233-.4-.025-.616.175-.815.18-.178.4-.467.6-.7.2-.233.267-.4.4-.667.133-.266.067-.5-.033-.7-.1-.2-.9-2.167-1.233-2.967-.324-.779-.654-.673-.9-.686-.233-.012-.5-.015-.767-.015-.267 0-.7.1-1.067.5-.367.4-1.4 1.367-1.4 3.334s1.433 3.867 1.633 4.134c.2.267 2.82 4.306 6.833 6.035.954.413 1.699.66 2.28.845.957.305 1.829.262 2.517.159.768-.115 2.366-.967 2.7-1.9.333-.933.333-1.734.233-1.9-.1-.166-.367-.267-.767-.467z"/>
+                </svg>
+                Share on WhatsApp
+              </button>
 
-              {/* Quick export row inside share modal */}
-              <div className="border-t pt-3 mt-1">
-                <p className="text-xs text-gray-500 mb-2 font-semibold">Quick Export</p>
-                <div className="grid grid-cols-4 gap-2">
-                  <button onClick={() => handleExportSingleCard("png")}
-                    className="flex flex-col items-center gap-1 p-2 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors">
-                    <FileImage size={15} className="text-teal-600" />
-                    <span className="text-[10px] font-bold text-teal-700">PNG</span>
-                  </button>
-                  <button onClick={() => handleExportSingleCard("pdf")}
-                    className="flex flex-col items-center gap-1 p-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors">
-                    <FileDown size={15} className="text-red-500" />
-                    <span className="text-[10px] font-bold text-red-700">PDF</span>
-                  </button>
-                  <button onClick={() => handleExportSingleCard("svg")}
-                    className="flex flex-col items-center gap-1 p-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors">
-                    <FileType size={15} className="text-purple-500" />
-                    <span className="text-[10px] font-bold text-purple-700">SVG</span>
-                  </button>
-                  <button onClick={handleDownloadVCard}
-                    className="flex flex-col items-center gap-1 p-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
-                    <Contact size={15} className="text-blue-500" />
-                    <span className="text-[10px] font-bold text-blue-700">vCard</span>
-                  </button>
-                </div>
-              </div>
+              <button
+                onClick={() => setShareModalOpen(false)}
+                className="w-full text-xs text-gray-400 hover:text-gray-600 py-1.5 transition-colors"
+              >
+                Close
+              </button>
             </div>
           </DialogContent>
         </Dialog>
