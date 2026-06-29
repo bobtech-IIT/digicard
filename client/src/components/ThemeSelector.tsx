@@ -219,7 +219,7 @@ export const FONT_PAIRINGS: FontPairing[] = [
     headingFont: "Poppins",
     bodyFont: "Poppins",
     googleUrl: "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap",
-    preview: "Friendly Round",
+    preview: "Poppins",
   },
   {
     id: "syne-dm",
