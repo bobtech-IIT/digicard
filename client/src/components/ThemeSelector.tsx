@@ -230,12 +230,12 @@ export const FONT_PAIRINGS: FontPairing[] = [
     preview: "Creative Edge",
   },
   {
-    id: "poppins-brother",
-    label: "Poppins · Brother",
-    headingFont: "Poppins",
+    id: "brother-1816",
+    label: "Brother 1816",
+    headingFont: "Brother 1816', 'Inter",
     bodyFont: "Brother 1816', 'Inter",
-    googleUrl: "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap",
-    preview: "Poppins & Brother",
+    googleUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+    preview: "Brother 1816",
   },
 ];
 
