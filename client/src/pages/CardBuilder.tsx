@@ -62,6 +62,8 @@ interface CardData {
   };
   themeId?: string;        // Phase 2: active card theme
   fontPairingId?: string;  // Phase 2: active font pairing
+  customBg?: string;
+  customTextColor?: string;
 }
 
 const EXPECTED_HEADERS = {
@@ -195,6 +197,8 @@ export default function CardBuilder() {
     },
     themeId: "classic-white",
     fontPairingId: "outfit-jakarta",
+    customBg: "",
+    customTextColor: "",
   });
 
   const handleHeadshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -738,6 +742,8 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
         bio: cardData.bio,
         themeId: cardData.themeId,
         fontPairingId: cardData.fontPairingId,
+        customBg: cardData.customBg,
+        customTextColor: cardData.customTextColor,
         // NOTE: No images here — stored in localStorage below
       });
 
@@ -1250,6 +1256,231 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                     currentBrandLogo={cardData.brandLogo}
                     currentBrandColors={cardData.brandColors}
                   />
+
+                  {/* ── Custom Card Color Trays ── */}
+                  <Card className="p-4 space-y-4 border border-gray-200 bg-white rounded-xl shadow-sm">
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800 mb-0.5">Custom Card Colors</h3>
+                      <p className="text-xs text-gray-500">Fine-tune your card's background and text colors manually</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Background Color Tray */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-700 block">Card Background</label>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          {/* Primary Brand */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customBg: cardData.brandColors?.primary || "#047857" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customBg === cardData.brandColors?.primary
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300" style={{ backgroundColor: cardData.brandColors?.primary || "#047857" }} />
+                            Primary
+                          </button>
+
+                          {/* Secondary Brand */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customBg: cardData.brandColors?.secondary || "#0d9488" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customBg === cardData.brandColors?.secondary
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300" style={{ backgroundColor: cardData.brandColors?.secondary || "#0d9488" }} />
+                            Secondary
+                          </button>
+
+                          {/* White */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customBg: "#ffffff" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customBg === "#ffffff"
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-white" />
+                            White
+                          </button>
+
+                          {/* Black */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customBg: "#000000" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customBg === "#000000"
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-black" />
+                            Black
+                          </button>
+
+                          {/* Slate */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customBg: "#1e293b" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customBg === "#1e293b"
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-slate-800" />
+                            Slate
+                          </button>
+
+                          {/* Cream */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customBg: "#F4F2EC" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customBg === "#F4F2EC"
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-[#F4F2EC]" />
+                            Cream
+                          </button>
+
+                          {/* Custom Color Picker */}
+                          <div className="flex items-center gap-1.5 border border-gray-200 rounded-full px-2.5 py-1 bg-gray-50">
+                            <input
+                              type="color"
+                              value={cardData.customBg || "#ffffff"}
+                              onChange={(e) => setCardData(prev => ({ ...prev, customBg: e.target.value }))}
+                              className="w-5 h-5 rounded-full cursor-pointer bg-transparent border-0"
+                            />
+                            <span className="text-[10px] font-mono text-gray-500 uppercase">{cardData.customBg || "#FFFFFF"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Text Color Tray */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-700 block">Card Text Color</label>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          {/* Primary Brand */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customTextColor: cardData.brandColors?.primary || "#047857" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customTextColor === cardData.brandColors?.primary
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300" style={{ backgroundColor: cardData.brandColors?.primary || "#047857" }} />
+                            Primary
+                          </button>
+
+                          {/* Secondary Brand */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customTextColor: cardData.brandColors?.secondary || "#0d9488" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customTextColor === cardData.brandColors?.secondary
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300" style={{ backgroundColor: cardData.brandColors?.secondary || "#0d9488" }} />
+                            Secondary
+                          </button>
+
+                          {/* White */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customTextColor: "#ffffff" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customTextColor === "#ffffff"
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-white" />
+                            White
+                          </button>
+
+                          {/* Black */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customTextColor: "#000000" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customTextColor === "#000000"
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-black" />
+                            Black
+                          </button>
+
+                          {/* Slate */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customTextColor: "#1e293b" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customTextColor === "#1e293b"
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-slate-800" />
+                            Slate
+                          </button>
+
+                          {/* Cream */}
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customTextColor: "#F4F2EC" }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 flex items-center gap-1.5 transition-all active:scale-95
+                              ${cardData.customTextColor === "#F4F2EC"
+                                ? "border-teal-500 bg-teal-50 text-teal-900"
+                                : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                              }`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-[#F4F2EC]" />
+                            Cream
+                          </button>
+
+                          {/* Custom Color Picker */}
+                          <div className="flex items-center gap-1.5 border border-gray-200 rounded-full px-2.5 py-1 bg-gray-50">
+                            <input
+                              type="color"
+                              value={cardData.customTextColor || "#000000"}
+                              onChange={(e) => setCardData(prev => ({ ...prev, customTextColor: e.target.value }))}
+                              className="w-5 h-5 rounded-full cursor-pointer bg-transparent border-0"
+                            />
+                            <span className="text-[10px] font-mono text-gray-500 uppercase">{cardData.customTextColor || "#000000"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Reset custom colors */}
+                      {(cardData.customBg || cardData.customTextColor) && (
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setCardData(prev => ({ ...prev, customBg: "", customTextColor: "" }))}
+                            className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 hover:underline"
+                          >
+                            Reset Custom Color Overrides (Back to Theme)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
                 </TabsContent>
               </Tabs>
 

@@ -144,9 +144,12 @@ export default function CardPreview({
     FONT_PAIRINGS.find(f => f.id === cardData.fontPairingId) ?? FONT_PAIRINGS[0];
 
   // When theme is light-text, override body/sub text for SVG fills
-  const themeBodyText = activeTheme.bodyText;
-  const themeSubText  = activeTheme.subText;
-  const themeDivider  = activeTheme.divider;
+  const themeBodyText = cardData.customTextColor || activeTheme.bodyText;
+  const themeSubText  = cardData.customTextColor || activeTheme.subText;
+  const themeDivider  = cardData.customTextColor || activeTheme.divider;
+  const nameColor1    = cardData.customTextColor || activeTheme.nameColor1;
+  const nameColor2    = cardData.customTextColor || activeTheme.nameColor2;
+  const accentLine    = cardData.customTextColor || activeTheme.accentLine;
 
   const [isExporting, setIsExporting] = useState(false);
   const [editorMode, setEditorMode] = useState(false);
@@ -605,7 +608,7 @@ export default function CardPreview({
       {svgDefs}
       {/* Background */}
       <rect width="800" height="457"
-        fill={activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg}
+        fill={cardData.customBg || (activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg)}
         rx="12" />
       {/* ── Brand accent strip (top) ── */}
       <rect x="0" y="0" width="800" height="5" fill={activeTheme.accentStrip} rx="2" />
@@ -626,17 +629,17 @@ export default function CardPreview({
           const fs = Math.min(offsets.name?.fontSize || 44, longName ? Math.max(26, 44 - (totalLen - 16) * 1.2) : 44);
           return longName ? (
             <text x="50" className="fc-name" fontSize={fs} fontWeight="800" letterSpacing="-0.5">
-              <tspan x="50" y="88" fill={activeTheme.nameColor1}>{firstName}</tspan>
-              <tspan x="50" dy={fs + 4} fill={activeTheme.nameColor2}>{lastName}</tspan>
+              <tspan x="50" y="88" fill={nameColor1}>{firstName}</tspan>
+              <tspan x="50" dy={fs + 4} fill={nameColor2}>{lastName}</tspan>
             </text>
           ) : (
             <text x="50" y="100" className="fc-name" fontSize={fs} fontWeight="800" letterSpacing="-0.5">
-              <tspan fill={activeTheme.nameColor1}>{firstName}</tspan>
-              {lastName && <tspan fill={activeTheme.nameColor2}> {lastName}</tspan>}
+              <tspan fill={nameColor1}>{firstName}</tspan>
+              {lastName && <tspan fill={nameColor2}> {lastName}</tspan>}
             </text>
           );
         })()}
-        <line x1="50" y1="130" x2="95" y2="130" stroke={activeTheme.accentLine} strokeWidth="5" strokeLinecap="round" />
+        <line x1="50" y1="130" x2="95" y2="130" stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
         {editorMode && <rect x="44" y="55" width="460" height="85" rx="6" className="drag-outline" />}
       </g>
 
@@ -647,7 +650,7 @@ export default function CardPreview({
         {/* Thin separator line between Designation and Office Name */}
 
         {/* Office Name */}
-        <text x="50" y="174" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={activeTheme.nameColor2} className="fc-body">{truncate(cardData.officeName, 40) || "Company Name"}</text>
+        <text x="50" y="174" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={nameColor2} className="fc-body">{truncate(cardData.officeName, 40) || "Company Name"}</text>
         {cardData.bio && cardData.bio.trim() && (
           <text x="50" y="192" fontSize={10} fontWeight="400" fill={themeSubText} fontStyle="italic" className="fc-body" opacity="0.85">{truncate(cardData.bio, 80)}</text>
         )}
@@ -748,7 +751,7 @@ export default function CardPreview({
       </defs>
       {/* Background */}
       <rect width="800" height="457"
-        fill={activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg}
+        fill={cardData.customBg || (activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg)}
         rx="12" />
       {/* ── Brand accent strip (top) ── */}
       <rect x="0" y="0" width="800" height="5" fill={activeTheme.accentStrip} rx="2" />
@@ -781,10 +784,10 @@ export default function CardPreview({
       {/* ── Name ── */}
       <g {...dragHandle("name")} transform={`translate(${offsets.name?.x || 0},${offsets.name?.y || 0})`}>
         <text x="310" y="90" className="fc-name" fontSize={offsets.name?.fontSize || 44} fontWeight="800" letterSpacing="-0.5">
-          <tspan fill={activeTheme.nameColor1}>{firstName}</tspan>
-          {lastName && <tspan fill={activeTheme.nameColor2}> {lastName}</tspan>}
+          <tspan fill={nameColor1}>{firstName}</tspan>
+          {lastName && <tspan fill={nameColor2}> {lastName}</tspan>}
         </text>
-        <line x1="310" y1="107" x2="355" y2="107" stroke={activeTheme.accentLine} strokeWidth="5" strokeLinecap="round" />
+        <line x1="310" y1="107" x2="355" y2="107" stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
         {editorMode && <rect x="304" y="45" width="380" height="70" rx="6" className="drag-outline" />}
       </g>
 
@@ -795,7 +798,7 @@ export default function CardPreview({
         {/* Thin separator line between Designation and Office Name */}
 
         {/* Office Name */}
-        <text x="310" y="157" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={activeTheme.nameColor2} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
+        <text x="310" y="157" fontSize={(offsets.designation?.fontSize || 15) - 1} fontWeight="600" fill={nameColor2} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
         {editorMode && <rect x="304" y="118" width="340" height="48" rx="6" className="drag-outline" />}
       </g>
 
@@ -889,7 +892,7 @@ export default function CardPreview({
         </defs>
         {/* Background */}
         <rect width="514" height="760"
-          fill={activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg}
+          fill={cardData.customBg || (activeTheme.bgGradientId ? `url(#${activeTheme.bgGradientId})` : activeTheme.bg)}
           rx="12" />
         {/* ── Brand accent strip (top) ── */}
         <rect x="0" y="0" width="514" height="5" fill={activeTheme.accentStrip} rx="2" />
@@ -923,11 +926,11 @@ export default function CardPreview({
 
         {/* ── Name ── */}
         <g {...dragHandle("name")} transform={`translate(${offsets.name?.x || 0},${offsets.name?.y || 0})`}>
-          <text x="38" y={hasPhoto ? 145 : 160} className="fc-name" fontSize={offsets.name?.fontSize || 32} fontWeight="800" letterSpacing="-0.5" fill={activeTheme.nameColor1}>
+          <text x="38" y={hasPhoto ? 145 : 160} className="fc-name" fontSize={offsets.name?.fontSize || 32} fontWeight="800" letterSpacing="-0.5" fill={nameColor1}>
             <tspan x="38">{firstName}</tspan>
-            {lastName && <tspan x="38" dy={offsets.name?.fontSize ? offsets.name.fontSize + 4 : 36} fill={activeTheme.nameColor2}>{lastName}</tspan>}
+            {lastName && <tspan x="38" dy={offsets.name?.fontSize ? offsets.name.fontSize + 4 : 36} fill={nameColor2}>{lastName}</tspan>}
           </text>
-          <line x1="38" y1={hasPhoto ? 200 : 225} x2="83" y2={hasPhoto ? 200 : 225} stroke={activeTheme.accentLine} strokeWidth="5" strokeLinecap="round" />
+          <line x1="38" y1={hasPhoto ? 200 : 225} x2="83" y2={hasPhoto ? 200 : 225} stroke={accentLine} strokeWidth="5" strokeLinecap="round" />
           {editorMode && <rect x="32" y={hasPhoto ? 105 : 120} width={hasPhoto ? 255 : 435} height="100" rx="6" className="drag-outline" />}
         </g>
 
@@ -938,7 +941,7 @@ export default function CardPreview({
           {/* Thin separator line */}
 
           {/* Office Name */}
-          <text x="38" y={hasPhoto ? 250 : 280} fontSize={(offsets.designation?.fontSize || 14) - 1} fontWeight="600" fill={activeTheme.nameColor2} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
+          <text x="38" y={hasPhoto ? 250 : 280} fontSize={(offsets.designation?.fontSize || 14) - 1} fontWeight="600" fill={nameColor2} className="fc-body">{truncate(cardData.officeName, 30) || "Company Name"}</text>
           {editorMode && <rect x="32" y={hasPhoto ? 210 : 240} width="440" height="50" rx="6" className="drag-outline" />}
         </g>
 
