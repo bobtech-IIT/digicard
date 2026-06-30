@@ -12,7 +12,7 @@ import AISettings from "@/components/AISettings";
 import BrandAssets from "@/components/BrandAssets";
 import ThemeSelector from "@/components/ThemeSelector";
 import { useLocation } from "wouter";
-import { Sparkles, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, ClipboardCheck, Loader2, Key, Eye, PenLine, Wand2, Type, Bold, Italic, RefreshCw, FileDown, FileImage, FileType, Contact } from "lucide-react";
+import { Sparkles, Upload, Save, Copy, MessageCircle, FileSpreadsheet, Sparkle, Download, ClipboardCheck, Loader2, Key, Eye, EyeOff, Lock, Unlock, PenLine, Wand2, Type, Bold, Italic, RefreshCw, FileDown, FileImage, FileType, Contact } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import * as XLSX from "xlsx";
@@ -357,9 +357,18 @@ export default function CardBuilder() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const handleLayoutChange = (newLayout: typeof layoutType) => {
+    isUndoRedoAction.current = true; // prevent double commit from watching effects
+    setLayoutType(newLayout);
+    setOffsets({});
+    const nextCardData = { ...cardData };
+    commitState(nextCardData, {}, textBoxes);
+  };
+
   const [vibgyorX, setVibgyorX] = useState(0.5);
   const [vibgyorY, setVibgyorY] = useState(0.5);
   const [fineTuneColor, setFineTuneColor] = useState("#047857");
+  const [selectedLayerKey, setSelectedLayerKey] = useState<string | null>(null);
 
   const calculatedColor = getHexFromXY(vibgyorX, vibgyorY);
   // Kelvin scale from 1500K (very warm) to 10000K (very cool)
@@ -1253,10 +1262,11 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
               
               {/* Form Tabs */}
               <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 rounded-lg">
+                <TabsList className="grid w-full grid-cols-4 bg-gray-100 p-1 rounded-lg">
                   <TabsTrigger value="basic" className="text-xs py-1.5">Basic</TabsTrigger>
                   <TabsTrigger value="social" className="text-xs py-1.5">Social</TabsTrigger>
                   <TabsTrigger value="brand" className="text-xs py-1.5">Brand</TabsTrigger>
+                  <TabsTrigger value="layers" className="text-xs py-1.5">Layers</TabsTrigger>
                 </TabsList>
 
                 {/* Basic Info Tab */}
@@ -1903,6 +1913,333 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                     </div>
                   </Card>
                 </TabsContent>
+
+                {/* Layers Inspector Tab */}
+                <TabsContent value="layers" className="mt-3 space-y-4">
+                  <div className="text-[11px] text-gray-500 font-bold tracking-wider mb-1 uppercase">
+                    Select and customize layers
+                  </div>
+                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 border border-gray-100 rounded-lg p-2 bg-gray-50/50">
+                    {(() => {
+                      const list = [
+                        { key: "name", label: "👤 Name", type: "text" },
+                        { key: "designation", label: "💼 Designation", type: "text" },
+                      ];
+                      if (layoutType.includes("with-photo")) {
+                        list.push({ key: "photo", label: "🖼️ Profile Photo", type: "scale" });
+                      }
+                      list.push({ key: "logo", label: "🏢 Brand Logo", type: "scale" });
+                      list.push({ key: "qr", label: "🏁 QR Code", type: "scale" });
+                      
+                      // Groups
+                      list.push({ key: "contacts", label: "📱 Contacts Block", type: "scale" });
+                      list.push({ key: "address", label: "📍 Address Block", type: "scale" });
+                      list.push({ key: "socials", label: "💬 Socials Block", type: "scale" });
+
+                      // Dividers
+                      list.push({ key: "divider_accent", label: "➖ Name Underline Accent", type: "divider" });
+                      list.push({ key: "divider_grid_top", label: "➖ Top Grid Separator", type: "divider" });
+                      list.push({ key: "divider_grid_bottom", label: "➖ Bottom Grid Separator", type: "divider" });
+                      list.push({ key: "divider_socials", label: "➖ Socials Separator", type: "divider" });
+
+                      return list.map((layer) => {
+                        const layerOffset = offsets[layer.key] || {};
+                        const isVisible = layerOffset.visible !== false;
+                        const isLocked = layerOffset.locked === true;
+                        const isSelected = selectedLayerKey === layer.key;
+
+                        return (
+                          <div
+                            key={layer.key}
+                            onClick={() => setSelectedLayerKey(layer.key)}
+                            className={`flex items-center justify-between p-2 rounded-lg text-xs font-semibold cursor-pointer transition-all border ${
+                              isSelected
+                                ? "bg-teal-50 border-teal-200 text-teal-900 shadow-sm"
+                                : "bg-white border-gray-150 text-gray-700 hover:bg-gray-50"
+                            }`}
+                          >
+                            <span className="truncate flex-1">{layer.label}</span>
+                            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              {/* Toggle Show/Hide */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextOffsets = {
+                                    ...offsets,
+                                    [layer.key]: {
+                                      ...(offsets[layer.key] || { x: 0, y: 0 }),
+                                      visible: !isVisible,
+                                    },
+                                  };
+                                  setOffsets(nextOffsets);
+                                  commitState(cardData, nextOffsets, textBoxes);
+                                }}
+                                className={`p-1 rounded hover:bg-gray-200/80 transition-all ${
+                                  isVisible ? "text-gray-500" : "text-gray-300"
+                                }`}
+                                title={isVisible ? "Hide Layer" : "Show Layer"}
+                              >
+                                {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+                              </button>
+
+                              {/* Toggle Lock/Unlock */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextOffsets = {
+                                    ...offsets,
+                                    [layer.key]: {
+                                      ...(offsets[layer.key] || { x: 0, y: 0 }),
+                                      locked: !isLocked,
+                                    },
+                                  };
+                                  setOffsets(nextOffsets);
+                                  commitState(cardData, nextOffsets, textBoxes);
+                                }}
+                                className={`p-1 rounded hover:bg-gray-200/80 transition-all ${
+                                  isLocked ? "text-teal-600 font-bold" : "text-gray-300"
+                                }`}
+                                title={isLocked ? "Unlock Layer" : "Lock Layer"}
+                              >
+                                {isLocked ? <Lock size={13} /> : <Unlock size={13} />}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+
+                  {/* Active Selected Layer Property Inspector Panel */}
+                  {selectedLayerKey && (() => {
+                    const list = [
+                      { key: "name", label: "👤 Name", type: "text" },
+                      { key: "designation", label: "💼 Designation", type: "text" },
+                    ];
+                    if (layoutType.includes("with-photo")) {
+                      list.push({ key: "photo", label: "🖼️ Profile Photo", type: "scale" });
+                    }
+                    list.push({ key: "logo", label: "🏢 Brand Logo", type: "scale" });
+                    list.push({ key: "qr", label: "🏁 QR Code", type: "scale" });
+                    
+                    // Contacts
+                    list.push({ key: "contact_mobile_icon", label: "📱 Mobile Icon", type: "icon" });
+                    list.push({ key: "contact_mobile_text", label: "📱 Mobile Text", type: "text" });
+                    list.push({ key: "contact_phone_icon", label: "📞 Phone Icon", type: "icon" });
+                    list.push({ key: "contact_phone_text", label: "📞 Phone Text", type: "text" });
+                    list.push({ key: "contact_email_icon", label: "✉️ Email Icon", type: "icon" });
+                    list.push({ key: "contact_email_text", label: "✉️ Email Text", type: "text" });
+                    list.push({ key: "contact_website_icon", label: "🌐 Website Icon", type: "icon" });
+                    list.push({ key: "contact_website_text", label: "🌐 Website Text", type: "text" });
+
+                    // Address
+                    list.push({ key: "address_icon", label: "📍 Map Pin Icon", type: "icon" });
+                    list.push({ key: "address_company", label: "🏢 Address Company", type: "text" });
+                    list.push({ key: "address_details", label: "📍 Address Details", type: "text" });
+
+                    // Socials
+                    list.push({ key: "social_whatsapp", label: "💬 WhatsApp Icon", type: "icon" });
+                    list.push({ key: "social_linkedin", label: "🔗 LinkedIn Icon", type: "icon" });
+                    list.push({ key: "social_instagram", label: "📸 Instagram Icon", type: "icon" });
+                    list.push({ key: "social_youtube", label: "📺 YouTube Icon", type: "icon" });
+                    list.push({ key: "social_twitter", label: "🐦 Twitter Icon", type: "icon" });
+                    list.push({ key: "social_facebook", label: "📘 Facebook Icon", type: "icon" });
+
+                    // Dividers
+                    list.push({ key: "divider_accent", label: "➖ Name Underline Accent", type: "divider" });
+                    list.push({ key: "divider_grid_top", label: "➖ Top Grid Separator", type: "divider" });
+                    list.push({ key: "divider_grid_bottom", label: "➖ Bottom Grid Separator", type: "divider" });
+                    list.push({ key: "divider_socials", label: "➖ Socials Separator", type: "divider" });
+
+                    const layer = list.find((l) => l.key === selectedLayerKey);
+                    if (!layer) return null;
+                    const layerOffset = offsets[layer.key] || { x: 0, y: 0 };
+                    
+                    return (
+                      <div className="border border-teal-100 bg-teal-50/20 p-3 rounded-xl space-y-3 shadow-inner">
+                        <div className="flex justify-between items-center pb-1.5 border-b border-teal-100/50">
+                          <span className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">
+                            Properties: {layer.label}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextOffsets = { ...offsets };
+                              delete nextOffsets[layer.key];
+                              setOffsets(nextOffsets);
+                              commitState(cardData, nextOffsets, textBoxes);
+                            }}
+                            className="text-[9px] font-bold text-teal-700 hover:underline"
+                          >
+                            Reset Transform
+                          </button>
+                        </div>
+
+                        {/* Slide Scale/Resizer controls */}
+                        {layer.type === "text" && (
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-[10px] font-bold text-gray-600">
+                              <span>Font Size override: {layerOffset.fontSize || "Default"}</span>
+                              <span className="font-mono text-gray-400">10 - 72px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="10"
+                              max="72"
+                              step="1"
+                              value={layerOffset.fontSize || 14}
+                              onChange={(e) => {
+                                const nextOffsets = {
+                                  ...offsets,
+                                  [layer.key]: {
+                                    ...(offsets[layer.key] || { x: 0, y: 0 }),
+                                    fontSize: parseInt(e.target.value),
+                                  },
+                                };
+                                setOffsets(nextOffsets);
+                                scheduleCommit(cardData, nextOffsets, textBoxes);
+                              }}
+                              className="w-full h-1.5 bg-gray-150 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                            />
+                          </div>
+                        )}
+
+                        {(layer.type === "scale" || layer.type === "icon") && (
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-[10px] font-bold text-gray-600">
+                              <span>Size Scale override: {(layerOffset.scale ?? 1.0).toFixed(2)}x</span>
+                              <span className="font-mono text-gray-400">0.20 - 3.00x</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.2"
+                              max="3"
+                              step="0.05"
+                              value={layerOffset.scale ?? 1}
+                              onChange={(e) => {
+                                const nextOffsets = {
+                                  ...offsets,
+                                  [layer.key]: {
+                                    ...(offsets[layer.key] || { x: 0, y: 0 }),
+                                    scale: parseFloat(e.target.value),
+                                  },
+                                };
+                                setOffsets(nextOffsets);
+                                scheduleCommit(cardData, nextOffsets, textBoxes);
+                              }}
+                              className="w-full h-1.5 bg-gray-150 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                            />
+                          </div>
+                        )}
+
+                        {/* Divider settings: color, opacity, thickness, rotation */}
+                        {layer.type === "divider" && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Thickness */}
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-600 block">Thickness (px)</label>
+                                <input
+                                  type="number"
+                                  min="0.5"
+                                  max="20"
+                                  step="0.5"
+                                  value={layerOffset.strokeWidth ?? 1.5}
+                                  onChange={(e) => {
+                                    const nextOffsets = {
+                                      ...offsets,
+                                      [layer.key]: {
+                                        ...(offsets[layer.key] || { x: 0, y: 0 }),
+                                        strokeWidth: parseFloat(e.target.value) || 1.5,
+                                      },
+                                    };
+                                    setOffsets(nextOffsets);
+                                    commitState(cardData, nextOffsets, textBoxes);
+                                  }}
+                                  className="w-full px-2 py-1 border rounded text-xs bg-white h-7 font-semibold"
+                                />
+                              </div>
+                              {/* Opacity */}
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-600 block">Opacity (0-1)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="1"
+                                  step="0.1"
+                                  value={layerOffset.opacity ?? 1.0}
+                                  onChange={(e) => {
+                                    const nextOffsets = {
+                                      ...offsets,
+                                      [layer.key]: {
+                                        ...(offsets[layer.key] || { x: 0, y: 0 }),
+                                        opacity: parseFloat(e.target.value) ?? 1.0,
+                                      },
+                                    };
+                                    setOffsets(nextOffsets);
+                                    commitState(cardData, nextOffsets, textBoxes);
+                                  }}
+                                  className="w-full px-2 py-1 border rounded text-xs bg-white h-7 font-semibold"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Divider Line Color */}
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gray-600 block">Line Stroke Color</label>
+                              <div className="flex gap-2 items-center">
+                                <input
+                                  type="color"
+                                  value={layerOffset.color || "#e2e8f0"}
+                                  onChange={(e) => {
+                                    const nextOffsets = {
+                                      ...offsets,
+                                      [layer.key]: {
+                                        ...(offsets[layer.key] || { x: 0, y: 0 }),
+                                        color: e.target.value,
+                                      },
+                                    };
+                                    setOffsets(nextOffsets);
+                                    commitState(cardData, nextOffsets, textBoxes);
+                                  }}
+                                  className="w-8 h-8 rounded border border-gray-300 cursor-pointer p-0 bg-transparent"
+                                />
+                                <span className="text-xs font-mono uppercase text-gray-500 font-semibold">{layerOffset.color || "Default"}</span>
+                              </div>
+                            </div>
+
+                            {/* Rotation */}
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between text-[10px] font-bold text-gray-600">
+                                <span>Rotation: {layerOffset.rotation || 0}°</span>
+                                <span className="font-mono text-gray-400">-180 to 180°</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value={layerOffset.rotation || 0}
+                                onChange={(e) => {
+                                  const nextOffsets = {
+                                    ...offsets,
+                                    [layer.key]: {
+                                      ...(offsets[layer.key] || { x: 0, y: 0 }),
+                                      rotation: parseInt(e.target.value),
+                                    },
+                                  };
+                                  setOffsets(nextOffsets);
+                                  scheduleCommit(cardData, nextOffsets, textBoxes);
+                                }}
+                                className="w-full h-1.5 bg-gray-150 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </TabsContent>
               </Tabs>
 
               {/* Layout selections */}
@@ -1910,7 +2247,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
                 <label className="text-xs font-bold text-gray-700 block">Card Layout Template</label>
                 <Select
                   value={layoutType}
-                  onValueChange={(val: any) => setLayoutType(val)}
+                  onValueChange={handleLayoutChange}
                 >
                   <SelectTrigger className="w-full h-9 border-gray-200 text-sm bg-white">
                     <SelectValue placeholder="Select card template" />
@@ -1973,6 +2310,7 @@ Return ONLY a valid JSON array with the same keys, cleaned values. No explanatio
             <CardPreview
               cardData={cardData}
               layoutType={layoutType}
+              savedOffsets={offsets}
               onOffsetsChange={(newOffsets) => setOffsets(newOffsets)}
               cardId={savedCardId || undefined}
               textBoxes={textBoxes}
